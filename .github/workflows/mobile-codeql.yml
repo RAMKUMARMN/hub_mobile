@@ -2,7 +2,7 @@ name: "Mobile CodeQL"
 
 on:
   push:
-    branches: [main, develop,cg2]
+    branches: [main, dev,cg2]
     paths:
       - 'mobile/**'
   pull_request:

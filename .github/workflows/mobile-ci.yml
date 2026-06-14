@@ -2,15 +2,9 @@ name: Mobile CI
 
 on:
   push:
-    branches: [main, develop,cg2]
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/mobile-ci.yml'
+    branches: [main, dev, cg2]
   pull_request:
-    branches: [main,cg2]
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/mobile-ci.yml'
+    branches: [main, dev, cg2]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,8 +23,8 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -38,28 +32,27 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Verify Flutter installation
+        run: flutter --version
+
       - name: Install dependencies
-        working-directory: ./mobile
         run: flutter pub get
 
       - name: Analyze code
-        working-directory: ./mobile
         run: flutter analyze --fatal-infos --fatal-warnings
 
       - name: Run tests (if any)
-        working-directory: ./mobile
         run: flutter test --no-pub
         continue-on-error: true
 
-      - name: Build debug APK
-        working-directory: ./mobile
+      - name: Build Debug APK
         run: flutter build apk --debug
 
-      - name: Upload APK artifacts
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
-          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
 
       - name: Check secrets (debug only)
