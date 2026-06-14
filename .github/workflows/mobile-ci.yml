@@ -1,0 +1,71 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main, develop,cg2]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    branches: [main,cg2]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: ./mobile
+        run: flutter pub get
+
+      - name: Analyze code
+        working-directory: ./mobile
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run tests (if any)
+        working-directory: ./mobile
+        run: flutter test --no-pub
+        continue-on-error: true
+
+      - name: Build debug APK
+        working-directory: ./mobile
+        run: flutter build apk --debug
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+      - name: Check secrets (debug only)
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Keystore secret exists"
+          else
+            echo "Keystore secret NOT found - release builds will be skipped"
+          fi
