@@ -1,6 +1,13 @@
 ---
 name: "mobile-agent"
 description: "Describe what this custom agent does and when to use it."
+hooks:
+  PreSession:
+    - type: command
+      command: "if ! command -v flutter &>/dev/null; then echo 'ERROR: Flutter SDK not installed.'; exit 1; fi"
+  PostCommand:
+    - type: command
+      command: "echo \"[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] exit=$1 | $2\" >> /tmp/mobile-agent.log"
 ---
 This custom "mobile agent" assists contributors and maintainers working in this repo with Flutter development, cross-platform build tasks, and platform integration for the `hub_mobile` module. It acts as a focused, safety-first helper for authoring, reviewing, validating, and documenting changes to the Flutter codebase.
 
