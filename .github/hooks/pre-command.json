@@ -1,0 +1,6 @@
+[
+  {
+    "run": "if [[ \"$*\" == \"git push origin main\" && -z \"${CI:-}\" ]]; then echo 'BLOCKED: Direct push to main outside CI. Open a PR instead.'; exit 1; fi",
+    "description": "Prevent direct pushes to main outside CI"
+  }
+]

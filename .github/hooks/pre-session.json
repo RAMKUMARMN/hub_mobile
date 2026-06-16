@@ -1,0 +1,10 @@
+[
+  {
+    "run": "if ! command -v flutter &>/dev/null; then echo 'ERROR: Flutter SDK is not installed. Install Flutter 3.x to work on hub_mobile.'; exit 1; fi",
+    "description": "Verify Flutter SDK is installed"
+  },
+  {
+    "run": "if ! command -v dart &>/dev/null; then echo 'ERROR: Dart SDK is not installed. Install Dart SDK 3.4+ to work on hub_mobile.'; exit 1; fi",
+    "description": "Verify Dart SDK is installed"
+  }
+]
