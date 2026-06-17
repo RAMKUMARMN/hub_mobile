@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 import '../../models/message.dart';
 import '../../services/api_service.dart';
+import '../../services/local_storage_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String sessionId;
@@ -25,6 +26,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String _streamingContent = '';
   bool _isStreaming = false;
   bool _useRag = false;
+  final storage = LocalStorageService();
 
   @override
   void initState() {
@@ -34,13 +36,34 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadMessages() async {
     try {
-      final response = await ApiService().dio.get('/chat/sessions/${widget.sessionId}/messages');
+      final response = await ApiService().dio.get(
+        '/chat/sessions/${widget.sessionId}/messages',
+      );
+
       final list = (response.data as List)
           .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
           .toList();
-      setState(() { _messages.addAll(list); });
+      await storage.saveSessionMessages(
+        widget.sessionId,
+        list,
+      );
+      setState(() {
+        _messages.clear();
+        _messages.addAll(list);
+      });
     } catch (e) {
-      debugPrint('Error loading messages: $e');
+      debugPrint('Loading cached chats: $e');
+
+      final cached =
+          await storage.getSessionMessages(
+            widget.sessionId,
+          );
+
+      setState(() {
+        _messages.clear();
+
+        _messages.addAll(cached);
+      });
     }
   }
 
@@ -49,14 +72,19 @@ class _ChatScreenState extends State<ChatScreen> {
     if (content.isEmpty || _isStreaming) return;
 
     _textController.clear();
+    final userMessage = ChatMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      sessionId: widget.sessionId,
+      role: 'user',
+      content: content,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    // Save locally
+    await storage.saveMessage(userMessage);
+
     setState(() {
-      _messages.add(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sessionId: widget.sessionId,
-        role: 'user',
-        content: content,
-        createdAt: DateTime.now().toIso8601String(),
-      ));
+      _messages.add(userMessage);
       _streamingContent = '';
       _isStreaming = true;
     });
@@ -103,18 +131,20 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final fullContent = _streamingContent;
+    final assistantMessage = ChatMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      sessionId: widget.sessionId,
+      role: 'assistant',
+      content: fullContent,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    await storage.saveMessage(assistantMessage);
+
     setState(() {
       _isStreaming = false;
       _streamingContent = '';
-      if (fullContent.isNotEmpty) {
-        _messages.add(ChatMessage(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          sessionId: widget.sessionId,
-          role: 'assistant',
-          content: fullContent,
-          createdAt: DateTime.now().toIso8601String(),
-        ));
-      }
+      _messages.add(assistantMessage);
     });
     _scrollToBottom();
   }

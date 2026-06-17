@@ -40,8 +40,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       if (mounted) context.go('/chat');
     } catch (e) {
-      setState(() { _error = 'Registration failed. Email may already be in use.'; });
-    } finally {
+  debugPrint('REGISTER ERROR: $e');
+
+  setState(() {
+    _error = e.toString();
+  });
+} finally {
       if (mounted) setState(() { _isLoading = false; });
     }
   }

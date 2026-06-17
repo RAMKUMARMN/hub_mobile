@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../services/local_storage_service.dart';
 
 import '../../models/message.dart';
 import '../../services/api_service.dart';
@@ -17,29 +18,49 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
   bool _isLoading = true;
   bool _isCreating = false;
   String? _error;
+  final _storage = LocalStorageService();
 
-  @override
+ @override
   void initState() {
     super.initState();
+    _loadCachedSessions();
     _loadSessions();
+  }
+
+  Future<void> _loadCachedSessions() async {
+    final cached = await _storage.getRecentSessions();
+
+    if (!mounted || cached.isEmpty) return;
+
+    setState(() {
+      _sessions = cached;
+      _isLoading = false;
+    });
   }
 
   Future<void> _loadSessions() async {
     try {
       final response = await ApiService().dio.get('/chat/sessions');
-      setState(() {
-        _sessions = (response.data as List)
-            .map((s) => ChatSession.fromJson(s as Map<String, dynamic>))
-            .toList();
-        _isLoading = false;
-        _error = null;
-      });
+      final sessions = (response.data as List)
+      .map((s) => ChatSession.fromJson(s as Map<String, dynamic>))
+      .toList();
+
+  setState(() {
+    _sessions = sessions;
+    _isLoading = false;
+    _error = null;
+  });
+
+  await _storage.saveRecentSessions(sessions);
     } on DioException catch (e) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Failed to load chats: ${e.message}';
-      });
-    }
+        final cached = await _storage.getRecentSessions();
+
+        setState(() {
+          _sessions = cached;
+          _isLoading = false;
+          _error = cached.isEmpty ? 'No cached chats available' : null;
+        });
+      }
   }
 
   Future<void> _newSession() async {
@@ -49,8 +70,18 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
         '/chat/sessions',
         data: {'title': 'New Chat'},
       );
-      final session = ChatSession.fromJson(response.data as Map<String, dynamic>);
-      if (mounted) context.push('/chat/${session.id}');
+      final session = ChatSession.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+
+      _sessions.insert(0, session);
+
+      await _storage.saveRecentSessions(_sessions);
+
+      if (mounted) {
+        context.push('/chat/${session.id}');
+      }
+
       await _loadSessions();
     } on DioException catch (e) {
       if (mounted) {
@@ -67,6 +98,7 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
     try {
       await ApiService().dio.delete('/chat/sessions/$id');
       setState(() { _sessions.removeWhere((s) => s.id == id); });
+      await _storage.saveRecentSessions(_sessions);
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

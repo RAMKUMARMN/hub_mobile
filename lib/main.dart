@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/auth/login_screen.dart';
 import 'services/auth_state.dart';
 import 'screens/auth/register_screen.dart';
@@ -11,11 +11,14 @@ import 'screens/todos/todos_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'theme/cixio_theme.dart';
 import 'widgets/app_shell.dart';
+import 'config/app_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Pre-load auth state so GoRouter can redirect synchronously (no blank flash).
+  await Firebase.initializeApp();
   await authNotifier.initialize();
+  print('API URL = ${AppConfig.apiUrl}');
   runApp(const CixioHubApp());
 }
 
