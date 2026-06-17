@@ -6,14 +6,12 @@ on:
     paths:
       - 'android/**'
       - 'ios/**'
-      - 'lib/**'
       - '.github/workflows/mobile-codeql.yml'
   pull_request:
     branches: [main, dev, cg2]
     paths:
       - 'android/**'
       - 'ios/**'
-      - 'lib/**'
       - '.github/workflows/mobile-codeql.yml'
   schedule:
     - cron: '30 1 * * 0'
@@ -24,41 +22,6 @@ permissions:
   security-events: write
 
 jobs:
-  analyze-dart:
-    name: Analyze Dart Code
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get  # ← REMOVED "cd mobile"
-
-      - name: Initialize CodeQL (Dart)
-        uses: github/codeql-action/init@v4
-        with:
-          languages: javascript-typescript
-          queries: security-and-quality
-          build-mode: none
-
-      - name: Perform CodeQL Analysis (Dart)
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:javascript-typescript"
-
   analyze-native:
     name: Analyze Mobile Native Code (java-kotlin)
     runs-on: ubuntu-latest
@@ -86,14 +49,14 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get  # ← REMOVED "cd mobile"
+        run: flutter pub get
 
       - name: Decode google-services.json
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
 
       - name: Build Android app (for CodeQL analysis)
-        run: flutter build apk --debug  # ← REMOVED "cd mobile"
+        run: flutter build apk --debug
         continue-on-error: true
 
       - name: Initialize CodeQL (Java/Kotlin)
