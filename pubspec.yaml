@@ -80,7 +80,6 @@ flutter:
 
   # Assets
   assets:
-    - .env
     - assets/images/
 
   # Fonts (optional)
