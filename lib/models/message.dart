@@ -12,17 +12,24 @@ class ChatSession {
   });
 
   factory ChatSession.fromJson(Map<String, dynamic> json) => ChatSession(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        createdAt: json['created_at'] as String,
-        updatedAt: json['updated_at'] as String,
+        id: json['id'],
+        title: json['title'],
+        createdAt: json['created_at'],
+        updatedAt: json['updated_at'],
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 }
 
 class ChatMessage {
   final String id;
   final String sessionId;
-  final String role; // 'user' | 'assistant'
+  final String role;
   final String content;
   final String createdAt;
 
@@ -35,12 +42,20 @@ class ChatMessage {
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: json['id'] as String,
-        sessionId: json['session_id'] as String,
-        role: json['role'] as String,
-        content: json['content'] as String,
-        createdAt: json['created_at'] as String,
+        id: json['id'],
+        sessionId: json['session_id'],
+        role: json['role'],
+        content: json['content'],
+        createdAt: json['created_at'],
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'session_id': sessionId,
+        'role': role,
+        'content': content,
+        'created_at': createdAt,
+      };
 
   bool get isUser => role == 'user';
 }
