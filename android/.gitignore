@@ -1,14 +1,60 @@
-gradle-wrapper.jar
-/.gradle
+# Android
+.gradle/
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
-GeneratedPluginRegistrant.java
 .cxx/
+GeneratedPluginRegistrant.java
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
+# Keep Gradle wrapper files tracked
+# gradlew
+# gradlew.bat
+
+# Keystore files
 key.properties
 **/*.keystore
 **/*.jks
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+build/
+.packages
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+
+# macOS
+macos/Flutter/ephemeral/
+
+# Linux
+linux/flutter/ephemeral/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Web
+web/.dart_tool/
+
+# VS Code
+.vscode/
+
+# Node.js (Cixio and MCP server)
+node_modules/
+cixio/node_modules/
+smarthub-mcp-server/node_modules/
+
+dist/
+cixio/dist/
+smarthub-mcp-server/dist/
+
+npm-debug.log*
+
+# Environment files
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

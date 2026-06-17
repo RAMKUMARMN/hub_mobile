@@ -1,0 +1,42 @@
+[
+  {
+    "name": "createEvent",
+    "description": "Create a new event"
+  },
+  {
+    "name": "discoverApiServices",
+    "description": "Discover available API services"
+  },
+  {
+    "name": "discoverModels",
+    "description": "Discover available AI models"
+  },
+  {
+    "name": "discoverProviders",
+    "description": "Discover service providers"
+  },
+  {
+    "name": "discoverScreens",
+    "description": "Discover application screens"
+  },
+  {
+    "name": "discoverServices",
+    "description": "Discover backend services"
+  },
+  {
+    "name": "discoverWidgets",
+    "description": "Discover available widgets"
+  },
+  {
+    "name": "getSystemStatus",
+    "description": "Get current system status"
+  },
+  {
+    "name": "listAlerts",
+    "description": "List active alerts"
+  },
+  {
+    "name": "listDevices",
+    "description": "List connected devices"
+  }
+]
