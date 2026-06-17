@@ -4,16 +4,16 @@ on:
   push:
     branches: [main, dev, cg2]
     paths:
-      - 'mobile/**'
       - 'android/**'
       - 'ios/**'
+      - 'lib/**'
       - '.github/workflows/mobile-codeql.yml'
   pull_request:
     branches: [main, dev, cg2]
     paths:
-      - 'mobile/**'
       - 'android/**'
       - 'ios/**'
+      - 'lib/**'
       - '.github/workflows/mobile-codeql.yml'
   schedule:
     - cron: '30 1 * * 0'
@@ -45,9 +45,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: |
-          cd mobile
-          flutter pub get
+        run: flutter pub get  # ← REMOVED "cd mobile"
 
       - name: Initialize CodeQL (Dart)
         uses: github/codeql-action/init@v4
@@ -88,54 +86,14 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: |
-          cd mobile
-          flutter pub get
+        run: flutter pub get  # ← REMOVED "cd mobile"
 
-      - name: Create google-services.json for CI
+      - name: Decode google-services.json
         run: |
-          mkdir -p mobile/android/app/src/debug
-          mkdir -p mobile/android/app/src/main
-          # Create minimal google-services.json if not present
-          if [ ! -f "mobile/android/app/google-services.json" ]; then
-            echo '{
-              "project_info": {
-                "project_number": "123456789",
-                "firebase_url": "https://test.firebaseio.com",
-                "project_id": "test-project",
-                "storage_bucket": "test.appspot.com"
-              },
-              "client": [
-                {
-                  "client_info": {
-                    "mobilesdk_app_id": "1:123456789:android:test",
-                    "android_client_info": {
-                      "package_name": "com.example.mobile"
-                    }
-                  },
-                  "oauth_client": [],
-                  "api_key": [
-                    {
-                      "current_key": "AIzaSyTestKey"
-                    }
-                  ],
-                  "services": {
-                    "appinvite_service": {
-                      "other_platform_oauth_client": []
-                    }
-                  }
-                }
-              ],
-              "configuration_version": "1"
-            }' > mobile/android/app/google-services.json
-          fi
-          cp mobile/android/app/google-services.json mobile/android/app/src/debug/
-          cp mobile/android/app/google-services.json mobile/android/app/src/main/
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
 
       - name: Build Android app (for CodeQL analysis)
-        run: |
-          cd mobile
-          flutter build apk --debug
+        run: flutter build apk --debug  # ← REMOVED "cd mobile"
         continue-on-error: true
 
       - name: Initialize CodeQL (Java/Kotlin)
