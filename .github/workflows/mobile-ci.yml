@@ -46,12 +46,21 @@ jobs:
           echo "API_URL=http://localhost:8000" > .env
           echo "ENVIRONMENT=test" >> .env
 
+      - name: Decode google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+
+      - name: Decode google-services.json (debug)
+        run: |
+          mkdir -p android/app/src/debug
+          cp android/app/google-services.json android/app/src/debug/
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Analyze code
         run: flutter analyze
-        continue-on-error: true  # Don't fail on warnings
+        continue-on-error: true
 
       - name: Run tests (if any)
         run: flutter test --no-pub
