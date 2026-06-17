@@ -4,7 +4,7 @@ class AppConfig {
   /// Android Emulator: use http://10.0.2.2:8090
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8090',
+    defaultValue: 'http://localhost:8000',
   );
 
   static const String notifyBaseUrl = String.fromEnvironment(

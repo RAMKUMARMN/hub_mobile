@@ -18,6 +18,9 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
   bool _isCreating = false;
   String? _error;
 
+final TextEditingController _searchController = TextEditingController();
+String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +66,54 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
     }
   }
 
+Future<void> _renameSession(ChatSession session) async {
+  final controller = TextEditingController(text: session.title);
+
+  final newTitle = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Rename Chat'),
+      content: TextField(
+        controller: controller,
+        decoration: const InputDecoration(
+          labelText: 'Chat title',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.pop(context, controller.text.trim()),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+
+  if (newTitle == null || newTitle.isEmpty) return;
+
+  try {
+    await ApiService().dio.put(
+      '/chat/sessions/${session.id}',
+      data: {'title': newTitle},
+    );
+
+    await _loadSessions();
+  } on DioException catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Rename failed: ${e.message}',
+          ),
+        ),
+      );
+    }
+  }
+}
   Future<void> _deleteSession(String id) async {
     try {
       await ApiService().dio.delete('/chat/sessions/$id');
@@ -78,7 +129,13 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+  final filteredSessions = _sessions.where((session) {
+    return session.title
+        .toLowerCase()
+        .contains(_searchQuery.toLowerCase());
+  }).toList();
+
+  return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -109,14 +166,33 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
                         ],
                       ),
                     )
-                  : RefreshIndicator(
-                      onRefresh: _loadSessions,
-                      child: ListView.separated(
+                  : Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: TextField(
+          controller: _searchController,
+          decoration: const InputDecoration(
+            hintText: 'Search chats...',
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value;
+            });
+          },
+        ),
+      ),
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: _loadSessions,
+          child: ListView.separated(
                         padding: const EdgeInsets.all(16),
-                        itemCount: _sessions.length,
+                        itemCount: filteredSessions.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final session = _sessions[index];
+                          final session = filteredSessions[index];
                           return Card(
                             child: ListTile(
                               leading: CircleAvatar(
@@ -128,16 +204,31 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
                                 _formatDate(session.updatedAt),
                                 style: const TextStyle(color: Colors.grey, fontSize: 12),
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _deleteSession(session.id),
-                              ),
+                              trailing: Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    IconButton(
+      icon: const Icon(Icons.edit_outlined),
+      onPressed: () => _renameSession(session),
+    ),
+    IconButton(
+      icon: const Icon(
+        Icons.delete_outline,
+        color: Colors.red,
+      ),
+      onPressed: () => _deleteSession(session.id),
+    ),
+  ],
+),
                               onTap: () => context.push('/chat/${session.id}'),
                             ),
                           );
                         },
                       ),
                     ),
+                  ),
+                ],
+              ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab_chat_sessions',
         onPressed: _isCreating ? null : _newSession,
