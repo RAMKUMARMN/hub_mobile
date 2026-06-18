@@ -114,6 +114,31 @@ Future<void> _renameSession(ChatSession session) async {
     }
   }
 }
+  Future<void> _confirmDeleteSession(ChatSession session) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Delete Chat'),
+      content: Text(
+        'Are you sure you want to delete "${session.title}"?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed == true) {
+    await _deleteSession(session.id);
+  }
+}
   Future<void> _deleteSession(String id) async {
     try {
       await ApiService().dio.delete('/chat/sessions/$id');
@@ -216,7 +241,7 @@ Future<void> _renameSession(ChatSession session) async {
         Icons.delete_outline,
         color: Colors.red,
       ),
-      onPressed: () => _deleteSession(session.id),
+      onPressed: () => _confirmDeleteSession(session),
     ),
   ],
 ),
