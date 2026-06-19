@@ -1,0 +1,19 @@
+{
+  "id": "cixio.mobile.hooks.dartFormat",
+  "name": "Dart Formatter Sync",
+  "event": "PostToolUse",
+  "action": {
+    "type": "shellExecution",
+    "command": "dart",
+    "args": [
+      "format",
+      "lib/"
+    ],
+    "options": {
+      "env": {
+        "TARGET_FILE": "${activeEditorFile}"
+      }
+    }
+  },
+  "timeout": 10000
+}
