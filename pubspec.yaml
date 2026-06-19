@@ -1,0 +1,66 @@
+name: cixiohub_mobile
+description: CixioHub Flutter mobile app — iOS and Android.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP client
+  dio: ^5.7.0
+  http: ^1.2.2
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Routing
+  go_router: ^14.3.0
+
+  # Local storage
+  hive_flutter: ^1.1.0
+  shared_preferences: ^2.3.2
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+  # Push notifications
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+
+  # File picker (for document uploads)
+  file_picker: ^8.1.2
+
+  # Image picker (for profile picture)
+  image_picker: ^1.1.2
+
+  # Markdown rendering (for chat)
+  flutter_markdown: ^0.7.4
+
+  # Environment variables
+  flutter_dotenv: ^5.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.4.3
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  background_color_ios: "#0B1E6B"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/images/
