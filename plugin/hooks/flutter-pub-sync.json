@@ -1,0 +1,19 @@
+{
+  "id": "cixio.mobile.hooks.pubGet",
+  "name": "Flutter Dependencies Sync",
+  "event": "PostToolUse",
+  "action": {
+    "type": "shellExecution",
+    "command": "flutter",
+    "args": [
+      "pub",
+      "get"
+    ],
+    "options": {
+      "env": {
+        "TARGET_FILE": "${activeEditorFile}"
+      }
+    }
+  },
+  "timeout": 25000
+}
