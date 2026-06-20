@@ -1,0 +1,10 @@
+{
+    "id": "manage-device-state",
+    "name": "manage-device-state",
+    "type": "skill",
+    "repository": "hub_mobile",
+    "enabled": true,
+    "version": "1.0.0",
+    "mcp_server": "",
+    "tool": ""
+}

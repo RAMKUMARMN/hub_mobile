@@ -1,0 +1,10 @@
+{
+    "id":  "discover-state-providers",
+    "name":  "discover-state-providers",
+    "type":  "skill",
+    "repository":  "hub_mobile",
+    "enabled":  true,
+    "version":  "1.0.0",
+    "mcp_server":  "smarthub-mcp-server",
+    "tool":  "discoverProviders"
+}
