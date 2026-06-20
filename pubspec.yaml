@@ -13,10 +13,6 @@ dependencies:
   dio: ^5.7.0
   http: ^1.2.2
 
-  # State management
-  flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
-
   # Routing
   go_router: ^14.3.0
 
@@ -34,21 +30,16 @@ dependencies:
   # File picker (for document uploads)
   file_picker: ^8.1.2
 
-  # Image picker (for profile picture)
-  image_picker: ^1.1.2
-
   # Markdown rendering (for chat)
   flutter_markdown: ^0.7.4
 
-  # Environment variables
-  flutter_dotenv: ^5.2.1
+  # App info (for settings)
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.4.13
-  riverpod_generator: ^2.4.3
   flutter_launcher_icons: ^0.14.3
 
 flutter_launcher_icons:
@@ -62,5 +53,4 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - .env
     - assets/images/
