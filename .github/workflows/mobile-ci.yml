@@ -68,11 +68,9 @@ jobs:
 
       - name: Analyze code
         run: flutter analyze
-        continue-on-error: true
 
-      - name: Run tests (if any)
+      - name: Run tests
         run: flutter test --no-pub
-        continue-on-error: true
 
       - name: Build Debug APK
         run: flutter build apk --debug
