@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_client.dart';
 //import '../../models/workspace_items/document.dart';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class DocumentService {
   final ApiClient _client = ApiClient();
@@ -125,7 +128,7 @@ class DocumentService {
     try {
       final token = await _client.getToken();
       if (token == null) {
-        print('❌ No token available');
+        logger.e('❌ No token available');
         return null;
       }
 
@@ -137,23 +140,23 @@ class DocumentService {
         },
       );
 
-      print('📥 Download URL check: ${response.statusCode}');
+      logger.i('📥 Download URL check: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         // Return the document ID - the caller will use it to download directly
         return documentId;
       } else if (response.statusCode == 404) {
-        print('❌ Document not found');
+        logger.e('❌ Document not found');
         return null;
       } else if (response.statusCode == 401) {
-        print('❌ Unauthorized');
+        logger.e('❌ Unauthorized');
         return null;
       } else {
-        print('❌ Unknown error: ${response.statusCode}');
+        logger.e('❌ Unknown error: ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      print('❌ Get download URL error: $e');
+      logger.e('❌ Get download URL error: $e');
       return null;
     }
   }
@@ -163,7 +166,7 @@ class DocumentService {
     try {
       final token = await _client.getToken();
       if (token == null) {
-        print('❌ No token available');
+        logger.e('❌ No token available');
         return null;
       }
 
@@ -174,19 +177,19 @@ class DocumentService {
         },
       );
 
-      print('📥 Download response: ${response.statusCode}');
+      logger.d('📥 Download response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final file = File(savePath);
         await file.writeAsBytes(response.bodyBytes);
-        print('✅ File saved to: $savePath');
+        logger.i('✅ File saved to: $savePath');
         return savePath;
       } else {
-        print('❌ Download failed: ${response.statusCode}');
+        logger.e('❌ Download failed: ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      print('❌ Download error: $e');
+      logger.e('❌ Download error: $e');
       return null;
     }
   }
