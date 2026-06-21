@@ -14,10 +14,13 @@ import '../../../themes/app_colors.dart';
 import '../calendar/calendar_screen.dart';
 import 'workspace_content.dart';
 import 'workspace_selector.dart';
+import 'package:logger/logger.dart';
+final logger = Logger();
 
 
 class WorkspaceScreen extends StatefulWidget {
   final String? initialWorkspaceId;
+  
   
   const WorkspaceScreen({super.key, this.initialWorkspaceId});
 
@@ -559,12 +562,12 @@ Future<void> _showCreateWorkspaceDialog() async {
                       );
                       
                       if (response['success'] == true) {
-                        debugPrint('✅ Task created on backend: ${response['data']}');
+                        logger.i('✅ Task created on backend: ${response['data']}');
                       } else {
-                        debugPrint('❌ Task creation failed on backend: ${response['error']}');
+                        logger.e('❌ Task creation failed on backend: ${response['error']}');
                       }
                     } catch (e) {
-                      debugPrint('❌ Error creating task: $e');
+                      logger.e('❌ Error creating task: $e');
                     }
                     // Schedule notification if reminder is enabled
                     if (enableReminder && selectedReminderTime != null) {

@@ -5,6 +5,9 @@ import '../models/workspace/workspace.dart';
 import '../services/api/workspace_service.dart';
 import './app_state.dart';
 import 'dart:convert';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class WorkspaceProvider extends ChangeNotifier {
   List<Workspace> _workspaces = [];
@@ -62,7 +65,7 @@ class WorkspaceProvider extends ChangeNotifier {
           _currentWorkspace = _workspaces.first;
         }
       } catch (e) {
-        debugPrint('Error loading workspaces from storage: $e');
+        logger.e('Error loading workspaces from storage: $e');
         _ensureDefaultWorkspace();
       }
     } else {

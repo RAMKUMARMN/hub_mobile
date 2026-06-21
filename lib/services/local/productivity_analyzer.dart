@@ -82,9 +82,6 @@ class ProductivityAnalyzer {
   
   /// ✅ NEW: Get productivity summary for current workspace
   static String generateCurrentWorkspaceSummary(AppState appState, Workspace workspace) {
-    if (workspace == null) {
-      return '📊 No workspace selected.';
-    }
     return generateSummary(appState, workspace.id);
   }
 }

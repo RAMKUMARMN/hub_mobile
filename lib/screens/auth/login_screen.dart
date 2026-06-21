@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:logger/logger.dart';
 
 import '../../providers/auth_provider.dart' as AppAuth;
 import '../../themes/app_colors.dart';
@@ -22,6 +23,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _registerEmailController = TextEditingController();
   final TextEditingController _registerPasswordController = TextEditingController();
+
+  final logger = Logger();
 
   final List<String> quotes = [
     "Notes, tasks, files, and ideas —\nall in one intelligent workspace.",
@@ -64,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// GOOGLE SIGN-IN - Single correct method
   Future<void> _signInWithGoogle() async {
-    print('🟢 Google Sign-In started');
+    logger.i('🟢 Google Sign-In started');
     
     if (_isGoogleSigningIn) return;
     
@@ -74,39 +77,39 @@ class _LoginScreenState extends State<LoginScreen> {
       final GoogleSignIn googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],
       );
-      print('🟢 GoogleSignIn instance created');
+      logger.i('🟢 GoogleSignIn instance created');
       
       await googleSignIn.signOut();
-      print('🟢 Signed out previous user');
+      logger.d('🟢 Signed out previous user');
       
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      print('🟢 Google user selected: ${googleUser?.email}');
+      logger.i('🟢 Google user selected: ${googleUser?.email}');
       
       if (googleUser == null) {
-        print('🔴 User cancelled sign in');
+        logger.w('🔴 User cancelled sign in');
         setState(() => _isGoogleSigningIn = false);
         return;
       }
       
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      print('🟢 Got authentication tokens');
+      logger.i('🟢 Got authentication tokens');
       
       // Use alias for Firebase credential
       final credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      print('🟢 Created Firebase credential');
+      logger.i('🟢 Created Firebase credential');
       
       // Use alias for Firebase Auth
       final firebase_auth.UserCredential userCredential = 
           await firebase_auth.FirebaseAuth.instance.signInWithCredential(credential);
       final firebase_auth.User? user = userCredential.user;
-      print('🟢 Firebase sign-in successful: ${user?.email}');
+      logger.i('🟢 Firebase sign-in successful: ${user?.email}');
       
       if (user != null && mounted) {
         final authProvider = Provider.of<AppAuth.AuthProvider>(context, listen: false);
-        print('🟢 Calling backend googleLogin...');
+        logger.i('🟢 Calling backend googleLogin...');
         
         final success = await authProvider.googleLogin(
           email: user.email ?? '',
@@ -115,16 +118,16 @@ class _LoginScreenState extends State<LoginScreen> {
           photoUrl: user.photoURL,
         );
         
-        print('🟢 Backend googleLogin result: $success');
+        logger.i('🟢 Backend googleLogin result: $success');
         
         if (success && mounted) {
-          print('🟢 Navigation to HomeScreen');
+          logger.i('🟢 Navigation to HomeScreen');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         } else if (mounted) {
-          print('🔴 Backend login failed');
+          logger.e('🔴 Backend login failed');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Google sign-in failed. Please try email login.'),
@@ -134,8 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e, stackTrace) {
-      print('🔴 Google Sign-In Error: $e');
-      print('🔴 Stack trace: $stackTrace');
+      logger.e('🔴 Google Sign-In Error: $e');
+      logger.e('🔴 Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -148,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() => _isGoogleSigningIn = false);
       }
-      print('🟢 Google Sign-In completed');
+      logger.i('🟢 Google Sign-In completed');
     }
   }
 

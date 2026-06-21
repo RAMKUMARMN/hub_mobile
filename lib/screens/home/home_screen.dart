@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Map<String, dynamic>> quickActions = [
     {"title": "Upload", "icon": Icons.upload_file_rounded},
     {"title": "Ask AI", "icon": Icons.auto_awesome_rounded},
+    {"title": "Note", "icon": Icons.note_add_rounded},
     {"title": "Focus Mode", "icon": Icons.timer_rounded},
     {"title": "Tasks", "icon": Icons.check_circle_outline_rounded},
     {"title": "Analytics", "icon": Icons.bar_chart_rounded},
@@ -46,13 +47,15 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+/*
   Future<void> _loadData() async {
     final appState = Provider.of<AppState>(context, listen: false);
     await appState.loadAllDataFromBackend();
   }
-
+*/
   void _handleUpload() => _fileService.showUploadDialog();
   void _navigateToAI() => NavigationService.navigateToAI(context);
+  void _createNote() => _noteService.showCreateNoteDialog();
   
   void _startFocusMode() {
     Navigator.push(
@@ -168,6 +171,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               break;
                             case "Focus Mode":
                               _startFocusMode();
+                              break;
+                            case "Note":
+                              _createNote();
                               break;
                             case "Tasks":
                               _viewTasks();

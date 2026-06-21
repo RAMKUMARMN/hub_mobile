@@ -2,10 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api/auth_service.dart';
-import '../services/api/api_client.dart';
+//import '../services/api/api_client.dart';
 import 'app_state.dart';
 import 'workspace_provider.dart';
-import '../screens/workspace_items/document_card.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _token;
@@ -21,7 +20,7 @@ class AuthProvider extends ChangeNotifier {
   
   // Services
   final AuthService _authService = AuthService();
-  final ApiClient _apiClient = ApiClient();
+ //final ApiClient _apiClient = ApiClient();
 
   // Getters
   String? get token => _token;

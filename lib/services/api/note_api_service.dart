@@ -1,9 +1,11 @@
 // lib/services/api/note_api_service.dart
 import 'api_client.dart';
+import 'package:logger/logger.dart';
+
 
 class NoteApiService {
   final ApiClient _client = ApiClient();
-
+  final logger = Logger();
 // lib/services/api/note_api_service.dart
 // lib/services/api/note_api_service.dart
 
@@ -14,7 +16,7 @@ Future<Map<String, dynamic>> getNotes({String? workspaceId}) async {
     endpoint: '/notes$query',
   );
   
-  print('📝 Raw notes response: $response');  // Debug
+  logger.d('📝 Raw notes response: $response');  // Debug
   
   if (response['success'] == true) {
     final data = response['data'];

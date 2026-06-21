@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:logger/logger.dart';
 
 // ============ NOTIFICATION PRIORITY ENUM ============
 enum NotificationPriority {
@@ -21,6 +22,8 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
+  final logger = Logger();
+
   // ============ INITIALIZATION ============
 
   Future<void> initialize() async {
@@ -31,7 +34,7 @@ class NotificationService {
     try {
       tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
     } catch (e) {
-      debugPrint('Timezone error: $e, falling back to UTC');
+      logger.e('Timezone error: $e, falling back to UTC');
       tz.setLocalLocation(tz.UTC);
     }
     
@@ -89,7 +92,7 @@ class NotificationService {
   }
   
   void _onNotificationTap(NotificationResponse response) {
-    debugPrint('Notification tapped: ${response.payload}');
+    logger.i('Notification tapped: ${response.payload}');
   }
   
   Future<bool> requestPermissions() async {

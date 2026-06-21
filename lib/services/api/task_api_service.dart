@@ -1,9 +1,12 @@
 // lib/services/api/task_api_service.dart
 import 'api_client.dart';
 import '../../models/workspace_items/task.dart';
+import 'package:logger/logger.dart';
+
 
 class TaskApiService {
   final ApiClient _client = ApiClient();
+  final logger = Logger();
 
   /// Get all tasks (optionally filtered by workspace)
   // lib/services/api/task_api_service.dart
@@ -17,7 +20,7 @@ Future<Map<String, dynamic>> getTasks({String? workspaceId}) async {
     endpoint: '/tasks$query',
   );
   
-  print('📝 Raw tasks response: $response');  // Debug
+  logger.d('📝 Raw tasks response: $response');  // Debug
   
   if (response['success'] == true) {
     final data = response['data'];

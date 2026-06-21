@@ -222,12 +222,12 @@ class AIProvider extends ChangeNotifier {
   }
 
   /// Generate a title from the first message
-  String _generateTitle(String firstMessage) {
-    if (firstMessage.length > 30) {
-      return '${firstMessage.substring(0, 27)}...';
-    }
-    return firstMessage;
-  }
+  // String _generateTitle(String firstMessage) {
+   //  if (firstMessage.length > 30) {
+  //     return '${firstMessage.substring(0, 27)}...';
+   //  }
+  //   return firstMessage;
+  // }
 
   // ============ FILE UPLOAD FOR AI ============
   

@@ -13,6 +13,7 @@ import '../services/api/task_api_service.dart';
 import '../services/api/note_api_service.dart';
 import '../models/workspace/workspace.dart';
 import '../services/api/workspace_service.dart';
+import 'package:logger/logger.dart';
 
 class AppState extends ChangeNotifier {
   // Items organized by workspace
@@ -21,6 +22,8 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> _recentActivities = [];
   List<FocusSession> _focusSessions = [];
   String? _currentUserId;
+
+  final logger = Logger();
 
   // Services
   final TaskApiService _taskApi = TaskApiService();
@@ -157,7 +160,7 @@ class AppState extends ChangeNotifier {
         _focusSessions =
             decoded.map((json) => FocusSession.fromJson(json)).toList();
       } catch (e) {
-        debugPrint('Error loading focus sessions: $e');
+        logger.e('Error loading focus sessions: $e');
         _focusSessions = [];
       }
     }
@@ -342,13 +345,13 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadUserData(String userId) async {
     _currentUserId = userId;
-    debugPrint('📂 Loading user data for: $userId');
+    logger.i('📂 Loading user data for: $userId');
     _workspaceItemsMap.clear();
     _recentActivities.clear();
     _focusSessions.clear();
     await _loadFromStorage();
     await _loadFocusSessions();
-    debugPrint('✅ Loaded data from local storage for user: $userId');
+    logger.i('✅ Loaded data from local storage for user: $userId');
     notifyListeners();
   }
 
@@ -366,16 +369,23 @@ class AppState extends ChangeNotifier {
     _recentActivities.clear();
     _focusSessions.clear();
     notifyListeners();
-    debugPrint('🗑️ Cleared in-memory data for user: $userId');
+    logger.i('🗑️ Cleared in-memory data for user: $userId');
   }
 
   // ============ HELPER: GET ICON FROM VALUE ============
 
   IconData _getIconFromValue(dynamic iconValue) {
-    // If it's already an int, convert to IconData
+    // ignore: non_constant_identifier_names
     if (iconValue is int) {
-      return IconData(iconValue, fontFamily: 'MaterialIcons');
-    }
+  try {
+    return IconData(
+      iconValue,
+      fontFamily: 'MaterialIcons',
+    );
+  } catch (_) {
+    return Icons.task_alt;
+  }
+}
     // If it's a String, try to parse as icon name
     if (iconValue is String) {
       switch (iconValue) {
@@ -424,7 +434,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadAllDataFromBackend() async {
     try {
-      debugPrint('🔄 Loading all data from backend...');
+      logger.i('🔄 Loading all data from backend...');
       final Map<String, List<WorkspaceItem>> newWorkspaceItemsMap = {};
       final List<Map<String, dynamic>> newRecentActivities = [];
 
@@ -433,8 +443,8 @@ class AppState extends ChangeNotifier {
       List<Workspace> workspaces = [];
       if (workspacesResponse['success'] == true) {
         final workspacesData = workspacesResponse['data'] as List;
-        debugPrint('WORKSPACE RAW JSON:');
-        debugPrint(workspacesData.toString());
+        logger.i('WORKSPACE RAW JSON:');
+        logger.i(workspacesData.toString());
         workspaces =
             workspacesData.map((json) => Workspace.fromJson(json)).toList();
       }
@@ -450,7 +460,7 @@ class AppState extends ChangeNotifier {
               await _taskApi.getTasks(workspaceId: workspace.id);
 
           // ✅ Debug: Log what we got
-          debugPrint('📝 Tasks response: $tasksResponse');
+          logger.d('📝 Tasks response: $tasksResponse');
 
           if (tasksResponse['success'] == true) {
             final data = tasksResponse['data'];
@@ -472,16 +482,16 @@ class AppState extends ChangeNotifier {
                     .any((item) => item.id == task.id);
                 if (!exists) {
                   newWorkspaceItemsMap[workspace.id]!.add(task);
-                  debugPrint('✅ Added task: ${task.title}');
+                  logger.i('✅ Added task: ${task.title}');
                 }
               } catch (e) {
-                debugPrint('❌ Error parsing task: $e');
-                debugPrint('❌ Task JSON: $taskJson');
+                logger.e('❌ Error parsing task: $e');
+                logger.e('❌ Task JSON: $taskJson');
               }
             }
           }
         } catch (e) {
-          debugPrint('❌ Error loading tasks: $e');
+          logger.e('❌ Error loading tasks: $e');
         }
 
 // Load notes
@@ -490,8 +500,8 @@ class AppState extends ChangeNotifier {
               await _noteApi.getNotes(workspaceId: workspace.id);
 
           // ✅ DEBUG: Log what we got
-          print('📝 Notes response: $notesResponse');
-          print('📝 Notes data type: ${notesResponse['data'].runtimeType}');
+          logger.d('📝 Notes response: $notesResponse');
+          logger.d('📝 Notes data type: ${notesResponse['data'].runtimeType}');
 
           if (notesResponse['success'] == true) {
             final data = notesResponse['data'];
@@ -503,9 +513,9 @@ class AppState extends ChangeNotifier {
                 try {
                   final note = Note.fromJson(noteJson);
                   newWorkspaceItemsMap[workspace.id]!.add(note);
-                  debugPrint('✅ Added note: ${note.title}');
+                  logger.i('✅ Added note: ${note.title}');
                 } catch (e) {
-                  debugPrint('❌ Error parsing note: $e');
+                  logger.e('❌ Error parsing note: $e');
                 }
               }
             } else if (data is Map) {
@@ -515,17 +525,17 @@ class AppState extends ChangeNotifier {
                 try {
                   final note = Note.fromJson(noteJson);
                   newWorkspaceItemsMap[workspace.id]!.add(note);
-                  debugPrint('✅ Added note: ${note.title}');
+                  logger.i('✅ Added note: ${note.title}');
                 } catch (e) {
-                  debugPrint('❌ Error parsing note: $e');
+                  logger.e('❌ Error parsing note: $e');
                 }
               }
             } else {
-              print('❌ Unexpected notes data type: ${data.runtimeType}');
+              logger.e('❌ Unexpected notes data type: ${data.runtimeType}');
             }
           }
         } catch (e) {
-          debugPrint('❌ Error loading notes: $e');
+          logger.e('❌ Error loading notes: $e');
         }
 
         // Load documents - ✅ FIXED: using _documentService
@@ -539,12 +549,12 @@ class AppState extends ChangeNotifier {
                 final document = Document.fromJson(docJson);
                 newWorkspaceItemsMap[workspace.id]!.add(document);
               } catch (e) {
-                debugPrint('❌ Error parsing document: $e');
+                logger.e('❌ Error parsing document: $e');
               }
             }
           }
         } catch (e) {
-          debugPrint('❌ Error loading documents: $e');
+          logger.e('❌ Error loading documents: $e');
         }
       }
 
@@ -559,11 +569,11 @@ class AppState extends ChangeNotifier {
       _saveToStorage();
       _saveUserDataIfLoggedIn();
       notifyListeners();
-      debugPrint('✅ Loaded all data from backend successfully');
+      logger.i('✅ Loaded all data from backend successfully');
     } catch (e, stackTrace) {
-      debugPrint('❌ Error loading data from backend: $e');
-      debugPrint('❌ Real Stack Trace:');
-      debugPrint(stackTrace.toString());
+      logger.e('❌ Error loading data from backend: $e');
+      logger.e('❌ Real Stack Trace:');
+      logger.d(stackTrace.toString());
     }
   }
 
@@ -581,6 +591,6 @@ class AppState extends ChangeNotifier {
     _recentActivities.clear();
     _focusSessions.clear();
     notifyListeners();
-    debugPrint('🗑️ Permanently deleted user data for: $userId');
+    logger.i('🗑️ Permanently deleted user data for: $userId');
   }
 }

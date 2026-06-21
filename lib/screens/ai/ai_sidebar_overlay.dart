@@ -14,7 +14,6 @@ class AISidebarOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final aiProvider = Provider.of<AIProvider>(context);
     final workspaceProvider = Provider.of<WorkspaceProvider>(context);
-    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
 
     return GestureDetector(
       onTap: onClose,

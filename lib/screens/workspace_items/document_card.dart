@@ -11,6 +11,9 @@ import '../../themes/app_colors.dart';
 import '../../widgets/glass/glass_card.dart';
 import '../../utils/helpers.dart';
 import '../../services/api/api_client.dart';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class DocumentCard extends StatelessWidget {
   final Document document;
@@ -92,7 +95,7 @@ class DocumentCard extends StatelessWidget {
       if (await cacheFile.exists()) {
         final fileSize = await cacheFile.length();
         if (fileSize > 0) {
-          debugPrint('📄 Opening from cache: $cacheFilePath');
+          logger.i('📄 Opening from cache: $cacheFilePath');
           final result = await OpenFile.open(cacheFilePath);
           if (result.type != ResultType.done) {
             if (context.mounted) {
@@ -104,7 +107,7 @@ class DocumentCard extends StatelessWidget {
       }
       
       // STEP 2: File not cached - download it
-      debugPrint('📥 Downloading file: ${document.title}');
+      logger.i('📥 Downloading file: ${document.title}');
       if (context.mounted) {
         Helpers.showInfo(context, 'Downloading file...');
       }
@@ -131,7 +134,7 @@ class DocumentCard extends StatelessWidget {
       
       // STEP 3: Save to user-specific cache
       await cacheFile.writeAsBytes(response.bodyBytes);
-      debugPrint('✅ File cached for user: $cacheFilePath');
+      logger.i('✅ File cached for user: $cacheFilePath');
       
       // STEP 4: Open the file
       final result = await OpenFile.open(cacheFilePath);
@@ -147,7 +150,7 @@ class DocumentCard extends StatelessWidget {
       }
       
     } catch (e) {
-      debugPrint('❌ Error opening document: $e');
+      logger.e('❌ Error opening document: $e');
       if (context.mounted) {
         Helpers.showError(context, 'Failed to open file: ${e.toString()}');
       }
@@ -164,18 +167,18 @@ class DocumentCard extends StatelessWidget {
         final userCacheDir = Directory('${appDocDir.path}/cached_documents/$userId');
         if (await userCacheDir.exists()) {
           await userCacheDir.delete(recursive: true);
-          debugPrint('🗑️ Cleared cache for user: $userId');
+          logger.i('🗑️ Cleared cache for user: $userId');
         }
       } else {
         // Clear all cache
         final cacheDir = Directory('${appDocDir.path}/cached_documents');
         if (await cacheDir.exists()) {
           await cacheDir.delete(recursive: true);
-          debugPrint('🗑️ Cleared all document cache');
+          logger.i('🗑️ Cleared all document cache');
         }
       }
     } catch (e) {
-      debugPrint('❌ Error clearing cache: $e');
+      logger.e('❌ Error clearing cache: $e');
     }
   }
 

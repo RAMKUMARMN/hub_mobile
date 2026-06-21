@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_client.dart';
-import '../../models/workspace_items/document.dart';
+//import '../../models/workspace_items/document.dart';
 
 class DocumentService {
   final ApiClient _client = ApiClient();

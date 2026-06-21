@@ -9,11 +9,14 @@ import '../../providers/workspace_provider.dart';
 import '../../models/workspace_items/document.dart';
 import '../api/document_service.dart';
 import '../../utils/helpers.dart';
+import 'package:logger/logger.dart';
 
 class FileService {
   final BuildContext context;
   final ImagePicker _picker = ImagePicker();
   final DocumentService _documentService = DocumentService();  // ✅ NEW
+
+  final logger = Logger();
   
   FileService({required this.context});
 
@@ -26,9 +29,9 @@ class FileService {
     final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
     final workspaceId = workspaceProvider.currentWorkspace?.id;
     
-    debugPrint('=== UPLOAD DEBUG ===');
-    debugPrint('Current workspace ID: $workspaceId');
-    debugPrint('Current workspace name: ${workspaceProvider.currentWorkspace?.name}');
+    logger.d('=== UPLOAD DEBUG ===');
+    logger.d('Current workspace ID: $workspaceId');
+    logger.d('Current workspace name: ${workspaceProvider.currentWorkspace?.name}');
     
     if (workspaceId == null) {
       if (context.mounted) {
@@ -76,11 +79,11 @@ class FileService {
           Helpers.showSuccess(context, '$fileType uploaded successfully!');
         }
         
-        debugPrint('Added document to workspace: $workspaceId');
+        logger.i('Added document to workspace: $workspaceId');
         
         // Use getItemsForWorkspace to count items
         final items = appState.getItemsForWorkspace(workspaceId);
-        debugPrint('Total items now: ${items.length}');
+        logger.i('Total items now: ${items.length}');
         
         // Refresh to ensure we have the latest from backend
         await _refreshDocuments(workspaceId, appState);
@@ -93,7 +96,7 @@ class FileService {
         return false;
       }
     } catch (e) {
-      debugPrint('Upload error: $e');
+      logger.e('Upload error: $e');
       if (context.mounted) {
         Helpers.showError(context, 'Upload failed: ${e.toString()}');
       }
@@ -127,7 +130,7 @@ class FileService {
         }
       }
     } catch (e) {
-      debugPrint('Refresh error: $e');
+      logger.e('Refresh error: $e');
     }
   }
 

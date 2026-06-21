@@ -1,6 +1,6 @@
 // lib/services/api/calendar_service.dart
 import 'api_client.dart';
-import '../../models/calendar_event.dart';
+//import '../../models/calendar_event.dart';
 
 class CalendarService {
   final ApiClient _client = ApiClient();

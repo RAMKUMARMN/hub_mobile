@@ -1,7 +1,4 @@
 // lib/models/calendar_event.dart
-
-import 'package:flutter/material.dart';
-
 enum NotificationMode {
   timeBased,   // Maps to backend "TIME_BASED" - notify 1 hour before
   dayStart,    // Maps to backend "DAY_START" - daily digest at 8 AM

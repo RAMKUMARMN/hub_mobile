@@ -6,7 +6,6 @@ import '../../providers/workspace_provider.dart';
 import '../../models/workspace/workspace.dart';
 import '../../models/workspace_items/task.dart';
 import '../../models/workspace_items/note.dart';
-import '../../models/workspace_items/document.dart';
 import 'ai_services.dart';
 
 class AIContextService {
@@ -19,7 +18,7 @@ class AIContextService {
   
   // ============ HELPER METHODS ============
   
-  /// Get all tasks across all workspaces
+  /*
   List<Task> _getAllTasks(AppState appState) {
     final allTasks = <Task>[];
     // AppState has no tasks getter now, so we iterate through all workspaces
@@ -33,7 +32,7 @@ class AIContextService {
     // AppState has no notes getter now, so we iterate through all workspaces
     return allNotes;
   }
-  
+  */
   // ============ WORKSPACE CONTEXT ============
   
   String buildWorkspaceContext() {

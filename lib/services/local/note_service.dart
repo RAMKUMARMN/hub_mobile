@@ -8,10 +8,12 @@ import '../../models/workspace_items/note.dart';
 import '../../utils/helpers.dart';
 import '../../utils/validators.dart';
 
+import 'package:logger/logger.dart';
+
 class NoteService {
   final BuildContext context;
   final NoteApiService _noteApi = NoteApiService();  // ✅ NEW: Instance of NoteApiService
-
+  final logger = Logger();
   NoteService({required this.context});
 
   /// Create a new note
@@ -66,7 +68,7 @@ class NoteService {
       );
     } catch (e) {
       // Backend save failed, but note already saved locally
-      debugPrint('Backend save failed, but note saved locally: $e');
+      logger.e('Backend save failed, but note saved locally: $e');
     }
     
     return true;

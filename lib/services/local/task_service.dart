@@ -9,10 +9,12 @@ import '../api/task_api_service.dart';
 import '../../utils/helpers.dart';
 import '../../utils/validators.dart';
 import 'notification_service.dart';
+import 'package:logger/logger.dart';
 
 class TaskService {
   final BuildContext context;
   final TaskApiService _taskApi = TaskApiService();
+  final logger =  Logger();
 
   TaskService({required this.context});
 
@@ -128,7 +130,7 @@ class TaskService {
         return false;
       }
     } catch (e) {
-      debugPrint('Create task error: $e');
+      logger.e('Create task error: $e');
       if (context.mounted) {
         Helpers.showError(context, 'Failed to create task: ${e.toString()}');
       }

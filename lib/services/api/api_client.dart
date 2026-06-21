@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
+import 'package:logger/logger.dart';
 
 class ApiClient {
+  final logger = Logger();
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
   ApiClient._internal();
@@ -30,7 +32,7 @@ Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
     if (token != null && token.isNotEmpty) {
       headers["Authorization"] = "Bearer $token";
     } else {
-      print('⚠️ No valid token found for authenticated request');
+      logger.w('⚠️ No valid token found for authenticated request');
     }
   }
   
