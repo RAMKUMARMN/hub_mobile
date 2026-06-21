@@ -69,7 +69,7 @@ jobs:
       - name: Analyze code (errors fail, warnings pass)
         run: |
           echo "🔍 Running flutter analyze..."
-          flutter analyze --no-pub > analysis_output.txt 2>&1
+          flutter analyze --no-pub > analysis_output.txt 2>&1 || true
           cat analysis_output.txt
           
           if grep -q "error •" analysis_output.txt; then
