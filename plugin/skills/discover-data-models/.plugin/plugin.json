@@ -1,0 +1,10 @@
+{
+    "id":  "discover-data-models",
+    "name":  "discover-data-models",
+    "type":  "skill",
+    "repository":  "hub_mobile",
+    "enabled":  true,
+    "version":  "1.0.0",
+    "mcp_server":  "smarthub-mcp-server",
+    "tool":  "discoverModels"
+}
