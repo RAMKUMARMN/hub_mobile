@@ -4,12 +4,20 @@ on:
   push:
     branches: [main, dev, cg2]
     paths:
-      - 'mobile/**'
+      - 'lib/**'              # Dart code
+      - 'android/**'          # Android native code
+      - 'ios/**'              # iOS native code (if exists)
+      - 'pubspec.yaml'        # Dependencies
+      - 'pubspec.lock'        # Lock file
       - '.github/workflows/mobile-ci.yml'
   pull_request:
     branches: [main, dev, cg2]
     paths:
-      - 'mobile/**'
+      - 'lib/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
       - '.github/workflows/mobile-ci.yml'
 
 concurrency:
