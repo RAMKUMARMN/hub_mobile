@@ -270,7 +270,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       child: Column(
         children: [
-          buildProfileIcon(),
           const SizedBox(height: 32),
 
           /// EMAIL FIELD
@@ -421,7 +420,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       child: Column(
         children: [
-          buildProfileIcon(),
           const SizedBox(height: 32),
 
           /// FULL NAME FIELD

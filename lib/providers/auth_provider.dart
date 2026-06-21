@@ -1,12 +1,11 @@
 // lib/providers/auth_provider.dart
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../services/api/api_services.dart';
+import '../services/api/auth_service.dart';
+import '../services/api/api_client.dart';
 import 'app_state.dart';
 import 'workspace_provider.dart';
+import '../screens/workspace_items/document_card.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _token;
@@ -18,7 +17,11 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
   
   AppState? _appState;
-  WorkspaceProvider? _workspaceProvider;  // ADD THIS
+  WorkspaceProvider? _workspaceProvider;
+  
+  // Services
+  final AuthService _authService = AuthService();
+  final ApiClient _apiClient = ApiClient();
 
   // Getters
   String? get token => _token;
@@ -37,9 +40,11 @@ class AuthProvider extends ChangeNotifier {
     _appState = appState;
   }
   
-  void setWorkspaceProvider(WorkspaceProvider workspaceProvider) {  // ADD THIS
+  void setWorkspaceProvider(WorkspaceProvider workspaceProvider) {
     _workspaceProvider = workspaceProvider;
   }
+
+  // ============ SESSION MANAGEMENT ============
 
   Future<void> _checkExistingSession() async {
     final prefs = await SharedPreferences.getInstance();
@@ -56,19 +61,38 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       notifyListeners();
       
-      // ✅ Load user data after session check with WorkspaceProvider
       if (_appState != null && _workspaceProvider != null && _userId != null) {
-        _appState!.loadUserData(_userId!, _workspaceProvider!);
+        await _loadUserData();
       }
     }
   }
+
+  Future<void> _loadUserData() async {
+    if (_appState == null || _workspaceProvider == null || _userId == null) return;
+    
+    _workspaceProvider!.setCurrentUserId(_userId!);
+    await _workspaceProvider!.loadUserWorkspaces(_userId!);
+    await _appState!.loadAllDataFromBackend();
+    await _appState!.loadUserData(_userId!);
+  }
+
+  Future<void> _saveSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_token != null) await prefs.setString('auth_token', _token!);
+    if (_userId != null) await prefs.setString('user_id', _userId!);
+    if (_userName != null) await prefs.setString('user_name', _userName!);
+    if (_userEmail != null) await prefs.setString('user_email', _userEmail!);
+  }
+
+  // ============ LOGIN ============
 
   Future<bool> login(String email, String password) async {
     _setLoading(true);
     _clearError();
 
     try {
-      final response = await ApiService.login(
+      // ✅ FIXED: Using _authService instead of ApiService
+      final response = await _authService.login(
         email: email,
         password: password,
       );
@@ -81,11 +105,7 @@ class AuthProvider extends ChangeNotifier {
         _isAuthenticated = true;
 
         await _saveSession();
-
-        // ✅ Load user data with WorkspaceProvider
-        if (_appState != null && _workspaceProvider != null && _userId != null) {
-          await _appState!.loadUserData(_userId!, _workspaceProvider!);
-        }
+        await _loadUserData();
 
         _setLoading(false);
         notifyListeners();
@@ -104,12 +124,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ============ REGISTER ============
+
   Future<bool> register(String name, String email, String password) async {
     _setLoading(true);
     _clearError();
 
     try {
-      final response = await ApiService.register(
+      // ✅ FIXED: Using _authService instead of ApiService
+      final response = await _authService.register(
         name: name,
         email: email,
         password: password,
@@ -123,11 +146,7 @@ class AuthProvider extends ChangeNotifier {
         _isAuthenticated = true;
 
         await _saveSession();
-
-        // ✅ Load user data with WorkspaceProvider
-        if (_appState != null && _workspaceProvider != null && _userId != null) {
-          await _appState!.loadUserData(_userId!, _workspaceProvider!);
-        }
+        await _loadUserData();
 
         _setLoading(false);
         notifyListeners();
@@ -146,6 +165,62 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ============ GOOGLE LOGIN ============
+
+  Future<bool> googleLogin({
+    required String email,
+    required String name,
+    required String googleId,
+    required String? photoUrl,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // ✅ FIXED: Using _authService instead of direct http call
+      final response = await _authService.googleLogin(
+        email: email,
+        name: name,
+        googleId: googleId,
+      );
+      
+      if (response['success'] == true) {
+        _token = response['token'] as String;
+        _userId = response['user_id'] as String;
+        _userName = response['name'] as String;
+        _userEmail = response['email'] as String;
+        _isAuthenticated = true;
+        
+        await _saveSession();
+        
+        if (_appState != null && _userId != null) {
+          await _appState!.loadUserData(_userId!);
+        }
+        
+        if (photoUrl != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('profile_image_url', photoUrl);
+        }
+        
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response['error'] ?? "Google sign-in failed";
+        _setLoading(false);
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = "Google sign-in failed: ${e.toString()}";
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ============ PROFILE MANAGEMENT ============
+
   Future<bool> updateProfile({String? name, String? email}) async {
     _setLoading(true);
 
@@ -156,7 +231,8 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      final response = await ApiService.updateProfile(
+      // ✅ FIXED: Using _authService instead of ApiService
+      final response = await _authService.updateProfile(
         name: name,
         email: email,
       );
@@ -193,7 +269,8 @@ class AuthProvider extends ChangeNotifier {
     }
 
     try {
-      final response = await ApiService.changePassword(
+      // ✅ FIXED: Using _authService instead of ApiService
+      final response = await _authService.changePassword(
         currentPassword: currentPassword,
         newPassword: newPassword,
       );
@@ -213,12 +290,50 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<String?> getProfileImageUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('profile_image_url');
+  }
+
+  // ============ LOGOUT ============
+
+  Future<void> logout() async {
+    
+    if (_appState != null && _userId != null) {
+      await _appState!.clearUserData(_userId!);
+    }
+    
+    // Clear WorkspaceProvider
+    if (_workspaceProvider != null) {
+      _workspaceProvider!.clearWorkspaces();
+    }
+    
+    // Clear auth state
+    _token = null;
+    _userId = null;
+    _userName = null;
+    _userEmail = null;
+    _isAuthenticated = false;
+    _errorMessage = null;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('user_id');
+    await prefs.remove('user_name');
+    await prefs.remove('user_email');
+
+    notifyListeners();
+  }
+
+  // ============ DELETE ACCOUNT ============
+
   Future<bool> deleteAccount() async {
     _setLoading(true);
     _clearError();
 
     try {
-      final response = await ApiService.deleteAccount();
+      // ✅ FIXED: Using _authService instead of ApiService
+      final response = await _authService.deleteAccount();
 
       if (response['success'] == true) {
         await _clearAllData();
@@ -236,91 +351,26 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> googleLogin({
-    required String email,
-    required String name,
-    required String googleId,
-    required String? photoUrl,
-  }) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final response = await http.post(
-        Uri.parse("${ApiService.baseUrl}/auth/google-login"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": email,
-          "name": name,
-          "google_id": googleId,
-        }),
-      );
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _token = data['access_token'];
-        _userId = data['user']['id'];
-        _userName = data['user']['name'];
-        _userEmail = data['user']['email'];
-        _isAuthenticated = true;
-        
-        await _saveSession();
-        
-        // ✅ Load user data with WorkspaceProvider
-        if (_appState != null && _workspaceProvider != null && _userId != null) {
-          await _appState!.loadUserData(_userId!, _workspaceProvider!);
-        }
-        
-        if (photoUrl != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('profile_image_url', photoUrl);
-        }
-        
-        _setLoading(false);
-        notifyListeners();
-        return true;
-      } else {
-        final error = jsonDecode(response.body);
-        _errorMessage = error['detail'] ?? "Google sign-in failed";
-        _setLoading(false);
-        notifyListeners();
-        return false;
-      }
-    } catch (e) {
-      _errorMessage = "Google sign-in failed: ${e.toString()}";
-      _setLoading(false);
-      notifyListeners();
-      return false;
-    }
-  }
-  
-  Future<String?> getProfileImageUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('profile_image_url');
-  }
-
   Future<void> _clearAllData() async {
     if (_appState != null && _userId != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_data_${_userId!}');
-      await _appState!.clearUserData(_userId!);
+      await _appState!.deleteUserData(_userId!);
     }
     
-    await logout();
-
+    if (_workspaceProvider != null) {
+      _workspaceProvider!.clearWorkspaces();
+    }
+    
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('workspace_items');
-    await prefs.remove('recent_activities');
-    await prefs.remove('all_workspace_items');
-    await prefs.remove('workspaces');
-    await prefs.remove('notifications_enabled');
-    await prefs.remove('ai_suggestions_enabled');
-    await prefs.remove('profile_image_path');
-  }
-
-  Future<void> logout() async {
-    if (_appState != null && _userId != null) {
-      await _appState!.clearUserData(_userId!);
+    await prefs.remove('auth_token');
+    await prefs.remove('user_id');
+    await prefs.remove('user_name');
+    await prefs.remove('user_email');
+    await prefs.remove('profile_image_url');
+    
+    if (_userId != null) {
+      await prefs.remove('workspace_items_$_userId');
+      await prefs.remove('recent_activities_$_userId');
+      await prefs.remove('focus_sessions_$_userId');
     }
     
     _token = null;
@@ -330,22 +380,10 @@ class AuthProvider extends ChangeNotifier {
     _isAuthenticated = false;
     _errorMessage = null;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('user_id');
-    await prefs.remove('user_name');
-    await prefs.remove('user_email');
-
     notifyListeners();
   }
 
-  Future<void> _saveSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (_token != null) await prefs.setString('auth_token', _token!);
-    if (_userId != null) await prefs.setString('user_id', _userId!);
-    if (_userName != null) await prefs.setString('user_name', _userName!);
-    if (_userEmail != null) await prefs.setString('user_email', _userEmail!);
-  }
+  // ============ HELPER METHODS ============
 
   void _setLoading(bool loading) {
     _isLoading = loading;

@@ -7,12 +7,13 @@ import 'package:file_picker/file_picker.dart';
 import '../../providers/app_state.dart';
 import '../../providers/workspace_provider.dart';
 import '../../models/workspace_items/document.dart';
-import '../api/document_api.dart';
+import '../api/document_service.dart';
 import '../../utils/helpers.dart';
 
 class FileService {
   final BuildContext context;
   final ImagePicker _picker = ImagePicker();
+  final DocumentService _documentService = DocumentService();  // ✅ NEW
   
   FileService({required this.context});
 
@@ -25,19 +26,24 @@ class FileService {
     final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
     final workspaceId = workspaceProvider.currentWorkspace?.id;
     
-    print('=== UPLOAD DEBUG ===');
-    print('Current workspace ID: $workspaceId');
-    print('Current workspace name: ${workspaceProvider.currentWorkspace?.name}');
+    debugPrint('=== UPLOAD DEBUG ===');
+    debugPrint('Current workspace ID: $workspaceId');
+    debugPrint('Current workspace name: ${workspaceProvider.currentWorkspace?.name}');
     
     if (workspaceId == null) {
-      Helpers.showError(context, 'No workspace selected');
+      if (context.mounted) {
+        Helpers.showError(context, 'No workspace selected');
+      }
       return false;
     }
     
-    Helpers.showInfo(context, 'Uploading $fileType...');
+    if (context.mounted) {
+      Helpers.showInfo(context, 'Uploading $fileType...');
+    }
     
     try {
-      final response = await DocumentApi.uploadDocument(
+      // ✅ FIXED: Using _documentService instead of DocumentApi
+      final response = await _documentService.uploadDocument(
         file: file,
         workspaceId: workspaceId,
       );
@@ -62,42 +68,54 @@ class FileService {
           updatedAt: DateTime.now(),
         );
         
-        // Add to local state
+        // Add to local state with required workspaceId
         appState.addWorkspaceItem(document, workspaceId: workspaceId);
         appState.addActivity('📄 $fileName uploaded to workspace');
-        Helpers.showSuccess(context, '$fileType uploaded successfully!');
         
-        print('Added document to workspace: $workspaceId');
-        print('Total items now: ${appState.workspaceItems.length}');
+        if (context.mounted) {
+          Helpers.showSuccess(context, '$fileType uploaded successfully!');
+        }
+        
+        debugPrint('Added document to workspace: $workspaceId');
+        
+        // Use getItemsForWorkspace to count items
+        final items = appState.getItemsForWorkspace(workspaceId);
+        debugPrint('Total items now: ${items.length}');
         
         // Refresh to ensure we have the latest from backend
         await _refreshDocuments(workspaceId, appState);
         
         return true;
       } else {
-        Helpers.showError(context, response['error'] ?? 'Upload failed');
+        if (context.mounted) {
+          Helpers.showError(context, response['error'] ?? 'Upload failed');
+        }
         return false;
       }
     } catch (e) {
-      print('Upload error: $e');
-      Helpers.showError(context, 'Upload failed: ${e.toString()}');
+      debugPrint('Upload error: $e');
+      if (context.mounted) {
+        Helpers.showError(context, 'Upload failed: ${e.toString()}');
+      }
       return false;
     }
   }
 
+  /// Refresh documents from backend
   Future<void> _refreshDocuments(String workspaceId, AppState appState) async {
     try {
-      final response = await DocumentApi.getDocuments(workspaceId: workspaceId);
+      // ✅ FIXED: Using _documentService instead of DocumentApi
+      final response = await _documentService.getDocuments(workspaceId: workspaceId);
       if (response['success'] == true) {
         final documents = response['data'] as List;
         
-        // Remove old documents for this workspace
-        final items = appState.workspaceItems.toList();
+        // Use getItemsForWorkspace instead of workspaceItems
+        final items = appState.getItemsForWorkspace(workspaceId).toList();
         for (var item in items) {
           if (item is Document && item.workspaceId == workspaceId) {
-            final index = appState.workspaceItems.indexOf(item);
+            final index = appState.getItemsForWorkspace(workspaceId).indexOf(item);
             if (index != -1) {
-              appState.removeWorkspaceItem(index);
+              appState.removeWorkspaceItem(index, workspaceId: workspaceId);
             }
           }
         }
@@ -109,7 +127,7 @@ class FileService {
         }
       }
     } catch (e) {
-      print('Refresh error: $e');
+      debugPrint('Refresh error: $e');
     }
   }
 
@@ -125,7 +143,9 @@ class FileService {
         );
       }
     } catch (e) {
-      Helpers.showError(context, 'Failed to pick image: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to pick image: ${e.toString()}');
+      }
     }
   }
 
@@ -141,7 +161,9 @@ class FileService {
         );
       }
     } catch (e) {
-      Helpers.showError(context, 'Failed to take photo: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to take photo: ${e.toString()}');
+      }
     }
   }
 
@@ -164,7 +186,9 @@ class FileService {
         );
       }
     } catch (e) {
-      Helpers.showError(context, 'Failed to pick document: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to pick document: ${e.toString()}');
+      }
     }
   }
 

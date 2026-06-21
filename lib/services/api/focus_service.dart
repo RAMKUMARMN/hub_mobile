@@ -1,9 +1,11 @@
-// lib/services/api/focus_api.dart
+// lib/services/api/focus_service.dart
+import 'api_client.dart';
 
-import 'api_services.dart';
+class FocusService {
+  final ApiClient _client = ApiClient();
 
-class FocusApi {
-  static Future<Map<String, dynamic>> startSession({
+  /// Start a new focus session
+  Future<Map<String, dynamic>> startSession({
     required int durationSeconds,
     int? intervalSeconds,
     String? goalDescription,
@@ -16,14 +18,15 @@ class FocusApi {
       body['goal_description'] = goalDescription;
     }
     
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'POST',
       endpoint: '/focus/sessions',
       body: body,
     );
   }
-  
-  static Future<Map<String, dynamic>> completeSession({
+
+  /// Complete a focus session
+  Future<Map<String, dynamic>> completeSession({
     required String sessionId,
     List<Map<String, dynamic>>? milestonePayload,
   }) async {
@@ -32,44 +35,48 @@ class FocusApi {
       body['milestone_payload'] = milestonePayload;
     }
     
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'PATCH',
       endpoint: '/focus/sessions/$sessionId/complete',
       body: body,
     );
   }
-  
-  static Future<Map<String, dynamic>> pauseSession({
+
+  /// Pause a focus session
+  Future<Map<String, dynamic>> pauseSession({
     required String sessionId,
   }) async {
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'PATCH',
       endpoint: '/focus/sessions/$sessionId/pause',
       body: {},
     );
   }
-  
-  static Future<Map<String, dynamic>> resumeSession({
+
+  /// Resume a paused focus session
+  Future<Map<String, dynamic>> resumeSession({
     required String sessionId,
   }) async {
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'PATCH',
       endpoint: '/focus/sessions/$sessionId/resume',
       body: {},
     );
   }
-  
-  static Future<Map<String, dynamic>> abandonSession({
+
+  /// Abandon/cancel a focus session
+  Future<Map<String, dynamic>> abandonSession({
     required String sessionId,
   }) async {
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'PATCH',
       endpoint: '/focus/sessions/$sessionId/abandon',
       body: {},
     );
   }
-  
-  static Future<Map<String, dynamic>> getSessions({
+
+  /// Get all focus sessions with optional filters
+  Future<Map<String, dynamic>> getSessions({
     DateTime? fromDate,
     DateTime? toDate,
     int? limit,
@@ -82,28 +89,31 @@ class FocusApi {
     final queryString = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
     final endpoint = queryString.isEmpty ? '/focus/sessions' : '/focus/sessions?$queryString';
     
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'GET',
       endpoint: endpoint,
     );
   }
-  
-  static Future<Map<String, dynamic>> getSession(String sessionId) async {
-    return await ApiService.makeRequest(
+
+  /// Get a single focus session by ID
+  Future<Map<String, dynamic>> getSession(String sessionId) async {
+    return await _client.request(
       method: 'GET',
       endpoint: '/focus/sessions/$sessionId',
     );
   }
-  
-  static Future<Map<String, dynamic>> getTodayStats() async {
-    return await ApiService.makeRequest(
+
+  /// Get today's focus stats
+  Future<Map<String, dynamic>> getTodayStats() async {
+    return await _client.request(
       method: 'GET',
       endpoint: '/focus/stats/today',
     );
   }
-  
-  static Future<Map<String, dynamic>> getWeeklyStats() async {
-    return await ApiService.makeRequest(
+
+  /// Get weekly focus stats
+  Future<Map<String, dynamic>> getWeeklyStats() async {
+    return await _client.request(
       method: 'GET',
       endpoint: '/focus/stats/weekly',
     );

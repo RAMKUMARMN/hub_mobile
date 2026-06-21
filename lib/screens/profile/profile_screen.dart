@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/app_state.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/workspace_provider.dart';
 import '../../services/local/notification_service.dart';
 import '../../themes/app_colors.dart';
 import '../../widgets/glass/glass_card.dart';
@@ -17,6 +18,8 @@ import '../auth/login_screen.dart';
 import '../support/help_screen.dart';
 import '../support/privacy_screen.dart';
 import '../../services/navigation/navigation_service.dart';
+// At the top of profile_screen.dart with other imports
+import '../workspace_items/document_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -46,6 +49,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       aiSuggestions = prefs.getBool('ai_suggestions_enabled') ?? true;
     });
   }
+
+  // Add this method after _loadPreferences() or anywhere in the state class
+
+Future<void> _clearCache() async {
+  // Show loading indicator
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Clearing cache...'), duration: Duration(seconds: 1)),
+    );
+  }
+  
+  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  final userId = authProvider.userId;
+  
+  // Clear user-specific document cache
+  await DocumentCard.clearUserDocumentCache(userId: userId);
+  
+  if (mounted) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Cache cleared successfully! 🗑️'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+}
 
   Future<void> _loadProfileImage() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -247,7 +278,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Map<String, dynamic> _getProductivityStats() {
     final appState = Provider.of<AppState>(context, listen: false);
-    final items = appState.workspaceItems;
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+    final workspaceId = workspaceProvider.currentWorkspace?.id;
+    
+    final items = workspaceId != null 
+        ? appState.getItemsForWorkspace(workspaceId)
+        : [];
     final activities = appState.recentActivities;
 
     return {
@@ -447,6 +483,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('ai_suggestions_enabled', value);
                   },
+                ),
+                _buildGlassTile(
+                  icon: Icons.storage_rounded,
+                  title: "Clear Cache",
+                  onTap: _clearCache,
+                ),
+                _buildGlassTile(
+                  icon: Icons.help_outline_rounded,
+                  title: "Help & Support",
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen())),
                 ),
                 _buildGlassTile(
                   icon: Icons.help_outline_rounded,

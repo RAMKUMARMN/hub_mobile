@@ -117,7 +117,69 @@ class NotificationService {
     return true;
   }
 
+  // ============ PUBLIC NOTIFICATION METHODS ============
+  
+  /// Show an immediate notification (public method for focus timer, etc.)
+  Future<void> showImmediateNotification({
+    required String title,
+    required String body,
+    required String payload,
+    NotificationPriority priority = NotificationPriority.medium,
+  }) async {
+    if (!_initialized) await initialize();
+    await _showImmediateNotification(
+      title: title,
+      body: body,
+      payload: payload,
+      priority: priority,
+    );
+  }
+
   // ============ PRIORITY-BASED NOTIFICATION METHODS ============
+  
+  Future<void> _showImmediateNotification({
+    required String title,
+    required String body,
+    required String payload,
+    NotificationPriority priority = NotificationPriority.medium,
+  }) async {
+    // FIXED: Added 'await' before Future<bool>
+    if (!(await _shouldShowNotification(payload, priority))) return;
+    if (!(await areNotificationsGloballyEnabled())) return;
+    
+    final importance = priority == NotificationPriority.high 
+        ? Importance.max
+        : (priority == NotificationPriority.medium ? Importance.high : Importance.defaultImportance);
+    
+    final androidPriority = priority == NotificationPriority.high 
+        ? Priority.high
+        : (priority == NotificationPriority.medium ? Priority.high : Priority.defaultPriority);
+    
+    final channelId = priority == NotificationPriority.high 
+        ? 'urgent_channel' 
+        : 'smart_hub_channel';
+    
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      priority == NotificationPriority.high ? 'Urgent Reminders' : 'SmartHub Notifications',
+      importance: importance,
+      priority: androidPriority,
+      channelDescription: 'Task reminders and productivity alerts',
+    );
+    
+    const iosDetails = DarwinNotificationDetails();
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    
+    await _plugin.show(
+      payload.hashCode,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+    
+    await _trackShownNotification(payload);
+  }
   
   Future<void> _showPrioritizedNotification({
     required String title,
@@ -126,7 +188,7 @@ class NotificationService {
     required NotificationPriority priority,
   }) async {
     // FIXED: Added 'await' before Future<bool>
-    if (!await _shouldShowNotification(payload, priority)) return;
+    if (!(await _shouldShowNotification(payload, priority))) return;
     if (!(await areNotificationsGloballyEnabled())) return;
     
     final importance = priority == NotificationPriority.high 
@@ -380,7 +442,7 @@ class NotificationService {
   }) async {
     if (scheduledTime.isBefore(DateTime.now())) return;
     // FIXED: Added 'await' before Future<bool>
-    if (!await _shouldShowNotification(payload, priority)) return;
+    if (!(await _shouldShowNotification(payload, priority))) return;
     if (!(await areNotificationsGloballyEnabled())) return;
     
     final importance = priority == NotificationPriority.high 

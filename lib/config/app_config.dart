@@ -6,7 +6,7 @@ class AppConfig {
   // For physical device: Your computer's IP (e.g., 192.168.1.100:8000)
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.219.158.19:8000',  // Change this to your backend URL// For emulator (Android Virtual Device): defaultValue: 'http://10.0.2.2:8000', defaultValue: 'http://192.168.1.100:8000',  // Find your IP with 'ipconfig',defaultValue: 'http://localhost:8000',
+    defaultValue: 'http://10.86.255.19:8000',  // Change this to your backend URL// For emulator (Android Virtual Device): defaultValue: 'http://10.0.2.2:8000', defaultValue: 'http://192.168.1.100:8000',  // Find your IP with 'ipconfig',defaultValue: 'http://localhost:8000',
   );
   
   // For different environments

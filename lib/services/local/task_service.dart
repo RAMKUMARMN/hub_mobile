@@ -5,13 +5,14 @@ import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../providers/workspace_provider.dart';
 import '../../models/workspace_items/task.dart';
-import '../api/task_api.dart';
+import '../api/task_api_service.dart';
 import '../../utils/helpers.dart';
 import '../../utils/validators.dart';
 import 'notification_service.dart';
 
 class TaskService {
   final BuildContext context;
+  final TaskApiService _taskApi = TaskApiService();
 
   TaskService({required this.context});
 
@@ -23,7 +24,7 @@ class TaskService {
     
     if (workspaceId == null) return [];
     
-    return appState.workspaceItems
+    return appState.getItemsForWorkspace(workspaceId)
         .whereType<Task>()
         .where((task) => task.workspaceId == workspaceId)
         .toList();
@@ -45,7 +46,7 @@ class TaskService {
   Future<bool> createTask({
     required String title,
     String description = '',
-    TaskPriority priority = TaskPriority.medium,  // FIXED: Use TaskPriority enum
+    TaskPriority priority = TaskPriority.medium,
     DateTime? dueDate,
     DateTime? reminderAt,
   }) async {
@@ -64,7 +65,8 @@ class TaskService {
     }
     
     try {
-      final response = await TaskApi.createTask(
+      // ✅ FIXED: Using _taskApi instead of TaskApi
+      final response = await _taskApi.createTask(
         title: title,
         description: description,
         priority: priority,
@@ -76,7 +78,6 @@ class TaskService {
       if (response['success'] == true) {
         final backendData = response['data'];
         
-        // Create task object from backend response
         final newTask = Task(
           id: backendData?['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
           workspaceId: workspaceId,
@@ -116,15 +117,21 @@ class TaskService {
         }
         
         appState.addActivity('✅ Task created: $title');
-        Helpers.showSuccess(context, 'Task created!');
+        if (context.mounted) {
+          Helpers.showSuccess(context, 'Task created!');
+        }
         return true;
       } else {
-        Helpers.showError(context, response['error'] ?? 'Failed to create task');
+        if (context.mounted) {
+          Helpers.showError(context, response['error'] ?? 'Failed to create task');
+        }
         return false;
       }
     } catch (e) {
-      print('Create task error: $e');
-      Helpers.showError(context, 'Failed to create task: ${e.toString()}');
+      debugPrint('Create task error: $e');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to create task: ${e.toString()}');
+      }
       return false;
     }
   }
@@ -134,31 +141,103 @@ class TaskService {
     final appState = Provider.of<AppState>(context, listen: false);
     
     try {
-      final response = await TaskApi.updateTask(
+      // ✅ FIXED: Using _taskApi instead of TaskApi
+      final response = await _taskApi.updateTask(
         taskId: taskId,
-        status: TaskStatus.completed,  // FIXED: Use TaskStatus enum
+        status: TaskStatus.completed,
       );
       
       if (response['success'] == true) {
-        // Update the task in local state
-        final index = appState.workspaceItems.indexWhere((item) => item.id == taskId);
-        if (index != -1) {
-          final oldTask = appState.workspaceItems[index] as Task;
-          final updatedTask = oldTask.copyWith(
-            status: TaskStatus.completed,
-            completedAt: DateTime.now(),
-          );
-          appState.updateWorkspaceItem(index, updatedTask);
-          appState.addActivity('✅ Task completed: ${oldTask.title}');
+        // Find which workspace the task belongs to
+        String? workspaceId;
+        Task? oldTask;
+        
+        for (var item in appState.getAllWorkspaceItems()) {
+          if (item is Task && item.id == taskId) {
+            oldTask = item;
+            workspaceId = appState.findWorkspaceIdForItem(taskId);
+            break;
+          }
         }
-        Helpers.showSuccess(context, 'Task completed!');
+        
+        if (workspaceId != null && oldTask != null) {
+          final items = appState.getItemsForWorkspace(workspaceId);
+          final index = items.indexWhere((item) => item.id == taskId);
+          if (index != -1) {
+            final updatedTask = oldTask.copyWith(
+              status: TaskStatus.completed,
+              completedAt: DateTime.now(),
+            );
+            appState.updateWorkspaceItem(index, updatedTask, workspaceId: workspaceId);
+            appState.addActivity('✅ Task completed: ${oldTask.title}');
+          }
+        }
+        if (context.mounted) {
+          Helpers.showSuccess(context, 'Task completed!');
+        }
         return true;
       } else {
-        Helpers.showError(context, response['error'] ?? 'Failed to complete task');
+        if (context.mounted) {
+          Helpers.showError(context, response['error'] ?? 'Failed to complete task');
+        }
         return false;
       }
     } catch (e) {
-      Helpers.showError(context, 'Failed to complete task: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to complete task: ${e.toString()}');
+      }
+      return false;
+    }
+  }
+
+  /// Update task status
+  Future<bool> updateTaskStatus(String taskId, TaskStatus status) async {
+    try {
+      // ✅ FIXED: Using _taskApi instead of TaskApi
+      final response = await _taskApi.updateTask(
+        taskId: taskId,
+        status: status,
+      );
+      
+      if (response['success'] == true) {
+        final appState = Provider.of<AppState>(context, listen: false);
+        
+        // Find which workspace the task belongs to
+        String? workspaceId;
+        Task? oldTask;
+        
+        for (var item in appState.getAllWorkspaceItems()) {
+          if (item is Task && item.id == taskId) {
+            oldTask = item;
+            workspaceId = appState.findWorkspaceIdForItem(taskId);
+            break;
+          }
+        }
+        
+        if (workspaceId != null && oldTask != null) {
+          final items = appState.getItemsForWorkspace(workspaceId);
+          final index = items.indexWhere((item) => item.id == taskId);
+          if (index != -1) {
+            final updatedTask = oldTask.copyWith(
+              status: status,
+              completedAt: status == TaskStatus.completed ? DateTime.now() : null,
+            );
+            appState.updateWorkspaceItem(index, updatedTask, workspaceId: workspaceId);
+          }
+        }
+        if (context.mounted) {
+          Helpers.showSuccess(context, 'Task updated');
+        }
+        return true;
+      }
+      if (context.mounted) {
+        Helpers.showError(context, response['error'] ?? 'Failed to update task');
+      }
+      return false;
+    } catch (e) {
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to update task: ${e.toString()}');
+      }
       return false;
     }
   }
@@ -166,46 +245,22 @@ class TaskService {
   /// Delete a task
   Future<bool> deleteTask(String taskId) async {
     try {
-      final response = await TaskApi.deleteTask(taskId);
+      // ✅ FIXED: Using _taskApi instead of TaskApi
+      final response = await _taskApi.deleteTask(taskId);
       if (response['success'] == true) {
-        Helpers.showSuccess(context, 'Task deleted');
-        return true;
-      }
-      Helpers.showError(context, response['error'] ?? 'Failed to delete task');
-      return false;
-    } catch (e) {
-      Helpers.showError(context, 'Failed to delete task: ${e.toString()}');
-      return false;
-    }
-  }
-
-  /// Update task status
-  Future<bool> updateTaskStatus(String taskId, TaskStatus status) async {  // FIXED: Use TaskStatus enum
-    try {
-      final response = await TaskApi.updateTask(
-        taskId: taskId,
-        status: status,
-      );
-      
-      if (response['success'] == true) {
-        // Update local state
-        final appState = Provider.of<AppState>(context, listen: false);
-        final index = appState.workspaceItems.indexWhere((item) => item.id == taskId);
-        if (index != -1) {
-          final oldTask = appState.workspaceItems[index] as Task;
-          final updatedTask = oldTask.copyWith(
-            status: status,
-            completedAt: status == TaskStatus.completed ? DateTime.now() : null,
-          );
-          appState.updateWorkspaceItem(index, updatedTask);
+        if (context.mounted) {
+          Helpers.showSuccess(context, 'Task deleted');
         }
-        Helpers.showSuccess(context, 'Task updated');
         return true;
       }
-      Helpers.showError(context, response['error'] ?? 'Failed to update task');
+      if (context.mounted) {
+        Helpers.showError(context, response['error'] ?? 'Failed to delete task');
+      }
       return false;
     } catch (e) {
-      Helpers.showError(context, 'Failed to update task: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to delete task: ${e.toString()}');
+      }
       return false;
     }
   }
@@ -248,7 +303,6 @@ class TaskService {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 12),
-                  // Priority Selection - Using TaskPriority enum
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: BoxDecoration(
@@ -287,7 +341,6 @@ class TaskService {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Due Date Picker
                   ListTile(
                     leading: const Icon(Icons.calendar_today),
                     title: Text(
@@ -307,7 +360,6 @@ class TaskService {
                       }
                     },
                   ),
-                  // Reminder Switch
                   SwitchListTile(
                     title: const Text('Set Reminder'),
                     subtitle: const Text('Get notified before this task'),
@@ -321,7 +373,6 @@ class TaskService {
                       });
                     },
                   ),
-                  // Reminder Time Picker
                   if (enableReminder)
                     ListTile(
                       leading: const Icon(Icons.access_time),

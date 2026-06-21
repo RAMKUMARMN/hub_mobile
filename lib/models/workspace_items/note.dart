@@ -1,4 +1,5 @@
 // lib/models/workspace_items/note.dart
+
 import 'package:flutter/material.dart';
 import 'workspace_item.dart';
 
@@ -34,19 +35,35 @@ class Note extends WorkspaceItem {
     'updatedAt': updatedAt.toIso8601String(),
   };
 
-  // ✅ ADD THIS FACTORY METHOD
+  // FIXED: backend NoteResponse sends:
+  //   id, workspace_id, title, content, tags, is_favorite, created_at, updated_at
+  // There is no "subtitle" field from the backend — derive one from content
+  // instead, the same way Document derives its subtitle from filetype.
+  // Falls back to camelCase keys too, since local SharedPreferences storage
+  // (via toJson() above) still uses camelCase — this makes fromJson handle
+  // both sources correctly rather than only one.
   factory Note.fromJson(Map<String, dynamic> json) {
+    final content = (json['content'] ?? '').toString();
+    final createdAt = DateTime.parse(
+      (json['created_at'] ?? json['createdAt']).toString(),
+    );
+
     return Note(
-      id: json['id'],
-      workspaceId: json['workspaceId'],
-      title: json['title'],
-      subtitle: json['subtitle'],
-      icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
-      content: json['content'] ?? '',
+      id: json['id'].toString(),
+      workspaceId: (json['workspace_id'] ?? json['workspaceId'])?.toString() ?? '',
+      title: (json['title'] ?? 'Untitled').toString(),
+      // Backend has no subtitle field — derive a short preview instead.
+      subtitle: (json['subtitle'] ??
+              (content.length > 60 ? '${content.substring(0, 60)}...' : content))
+          .toString(),
+      icon: Icons.notes_rounded,
+      content: content,
       tags: json['tags'] != null ? List<String>.from(json['tags']) : [],
-      isFavorite: json['isFavorite'] ?? false,
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      isFavorite: (json['is_favorite'] ?? json['isFavorite'] ?? false) as bool,
+      createdAt: createdAt,
+      updatedAt: json['updated_at'] != null || json['updatedAt'] != null
+          ? DateTime.parse((json['updated_at'] ?? json['updatedAt']).toString())
+          : createdAt,
     );
   }
 

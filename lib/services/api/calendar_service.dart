@@ -1,21 +1,24 @@
-// lib/services/api/calendar_api.dart
-
-import 'api_services.dart';
+// lib/services/api/calendar_service.dart
+import 'api_client.dart';
 import '../../models/calendar_event.dart';
 
-class CalendarApi {
-  static Future<Map<String, dynamic>> getEvents({
+class CalendarService {
+  final ApiClient _client = ApiClient();
+
+  /// Get events between start and end dates
+  Future<Map<String, dynamic>> getEvents({
     required DateTime startDate,
     required DateTime endDate,
   }) async {
     final queryParams = '?start_date=${startDate.toIso8601String()}&end_date=${endDate.toIso8601String()}';
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'GET',
       endpoint: '/calendar/events$queryParams',
     );
   }
-  
-  static Future<Map<String, dynamic>> createEvent({
+
+  /// Create a new calendar event
+  Future<Map<String, dynamic>> createEvent({
     required String title,
     required DateTime startTime,
     DateTime? endTime,
@@ -35,14 +38,15 @@ class CalendarApi {
     if (description != null) body['description'] = description;
     if (linkedTodoId != null) body['linked_todo_id'] = linkedTodoId;
     
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'POST',
       endpoint: '/calendar/events',
       body: body,
     );
   }
-  
-  static Future<Map<String, dynamic>> updateEvent({
+
+  /// Update an existing event
+  Future<Map<String, dynamic>> updateEvent({
     required String eventId,
     String? title,
     DateTime? startTime,
@@ -57,15 +61,16 @@ class CalendarApi {
     if (isAllDay != null) body['is_all_day'] = isAllDay;
     if (description != null) body['description'] = description;
     
-    return await ApiService.makeRequest(
+    return await _client.request(
       method: 'PUT',
       endpoint: '/calendar/events/$eventId',
       body: body,
     );
   }
-  
-  static Future<Map<String, dynamic>> deleteEvent(String eventId) async {
-    return await ApiService.makeRequest(
+
+  /// Delete an event
+  Future<Map<String, dynamic>> deleteEvent(String eventId) async {
+    return await _client.request(
       method: 'DELETE',
       endpoint: '/calendar/events/$eventId',
     );

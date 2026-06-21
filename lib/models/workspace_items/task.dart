@@ -15,7 +15,7 @@ enum TaskStatus {
   pending,     // Maps to backend "PENDING"
   inProgress,  // Maps to backend "IN_PROGRESS"
   completed,   // Maps to backend "COMPLETED"
-  cancelled    // Maps to backend "CANCELLED" (changed from archived)
+  cancelled    // Maps to backend "CANCELLED"
 }
 
 extension TaskPriorityExtension on TaskPriority {
@@ -96,8 +96,7 @@ class Task extends WorkspaceItem {
   final bool reminderEnabled;
   final bool reminderCompleted;
   
-  // Backend also has these fields
-  final String? userId;  // Added for backend compatibility
+  final String? userId;
   final DateTime? completedAt;
 
   Task({
@@ -183,7 +182,6 @@ class Task extends WorkspaceItem {
     'updatedAt': updatedAt.toIso8601String(),
   };
 
-  /// Convert to API format for sending to backend
   Map<String, dynamic> toApiJson() => {
     'workspace_id': workspaceId,
     'title': title,
@@ -194,46 +192,52 @@ class Task extends WorkspaceItem {
     'reminder_at': reminderAt?.toIso8601String(),
   };
 
-  factory Task.fromJson(Map<String, dynamic> json) {
-    return Task(
-      id: json['id'],
-      workspaceId: json['workspaceId'],
-      title: json['title'],
-      subtitle: json['subtitle'],
-      icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
-      description: json['description'] ?? '',
-      priority: TaskPriority.values[json['priority']],
-      status: TaskStatus.values[json['status']],
-      dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
-      reminderAt: json['reminderAt'] != null ? DateTime.parse(json['reminderAt']) : null,
-      reminderEnabled: json['reminderEnabled'] ?? false,
-      reminderCompleted: json['reminderCompleted'] ?? false,
-      userId: json['userId'],
-      completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
-    );
-  }
+  // ✅ FIXED: fromJson for local storage - uses default icon
+  // lib/models/workspace_items/task.dart
+
+factory Task.fromJson(Map<String, dynamic> json) {
+  return Task(
+    id: json['id'],
+    workspaceId: json['workspaceId'],
+    title: json['title'],
+    subtitle: json['subtitle'],
+    icon: Icons.task_alt,  // ✅ Use default icon
+    description: json['description'] ?? '',
+    priority: TaskPriority.values[json['priority']],
+    status: TaskStatus.values[json['status']],
+    dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
+    reminderAt: json['reminderAt'] != null ? DateTime.parse(json['reminderAt']) : null,
+    reminderEnabled: json['reminderEnabled'] ?? false,
+    reminderCompleted: json['reminderCompleted'] ?? false,
+    userId: json['userId'],
+    completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
+    createdAt: DateTime.parse(json['createdAt']),
+    updatedAt: DateTime.parse(json['updatedAt']),
+  );
+}
   
-  /// Create from backend API response
-  factory Task.fromApiJson(Map<String, dynamic> json) {
-    return Task(
-      id: json['id'].toString(),
-      workspaceId: json['workspace_id'].toString(),
-      title: json['title'],
-      subtitle: json['description'] ?? '',
-      icon: Icons.task_alt,
-      description: json['description'] ?? '',
-      priority: TaskPriorityExtension.fromApiValue(json['priority'] ?? 'MEDIUM'),
-      status: TaskStatusExtension.fromApiValue(json['status'] ?? 'PENDING'),
-      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
-      reminderAt: json['reminder_at'] != null ? DateTime.parse(json['reminder_at']) : null,
-      reminderEnabled: json['reminder_at'] != null,
-      reminderCompleted: false,
-      userId: json['user_id']?.toString(),
-      completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at']) : null,
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
-    );
-  }
+  // ✅ FIXED: fromApiJson for backend responses - uses default icon
+  // lib/models/workspace_items/task.dart
+
+/// Create from backend API response
+factory Task.fromApiJson(Map<String, dynamic> json) {
+  return Task(
+    id: json['id'].toString(),
+    workspaceId: json['workspace_id'].toString(),
+    title: json['title'] ?? '',
+    subtitle: json['description'] ?? '',
+    icon: Icons.task_alt,  // ✅ ALWAYS use this default - ignore backend icon
+    description: json['description'] ?? '',
+    priority: TaskPriorityExtension.fromApiValue(json['priority'] ?? 'MEDIUM'),
+    status: TaskStatusExtension.fromApiValue(json['status'] ?? 'PENDING'),
+    dueDate: json['deadline'] != null ? DateTime.parse(json['deadline']) : null,
+    reminderAt: json['reminder_at'] != null ? DateTime.parse(json['reminder_at']) : null,
+    reminderEnabled: json['reminder_at'] != null,
+    reminderCompleted: false,
+    userId: json['user_id']?.toString(),
+    completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at']) : null,
+    createdAt: DateTime.parse(json['created_at']),
+    updatedAt: DateTime.parse(json['updated_at']),
+  );
+}
 }

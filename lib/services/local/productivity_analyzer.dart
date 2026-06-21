@@ -1,5 +1,7 @@
 // lib/services/local/productivity_analyzer.dart
 import '../../providers/app_state.dart';
+import '../../models/workspace_items/task.dart';  // ADD THIS
+import '../../models/workspace/workspace.dart';  // ADD THIS
 
 class ProductivityAnalyzer {
   /// Analyze task postponement patterns
@@ -63,10 +65,11 @@ class ProductivityAnalyzer {
     return days[maxDay];
   }
   
-  /// Generate user productivity summary
-  static String generateSummary(AppState appState) {
-    final totalItems = appState.workspaceItems.length;
-    final pendingTasks = appState.pendingTasksCount;
+  /// ✅ FIXED: Generate user productivity summary using getItemsForWorkspace
+  static String generateSummary(AppState appState, String workspaceId) {
+    final items = appState.getItemsForWorkspace(workspaceId);
+    final totalItems = items.length;
+    final pendingTasks = items.whereType<Task>().where((t) => t.status != TaskStatus.completed).length;
     final recentActivities = appState.recentActivities.length;
     
     return '''
@@ -75,5 +78,13 @@ class ProductivityAnalyzer {
 • Pending tasks: $pendingTasks
 • Recent activities: $recentActivities
     ''';
+  }
+  
+  /// ✅ NEW: Get productivity summary for current workspace
+  static String generateCurrentWorkspaceSummary(AppState appState, Workspace workspace) {
+    if (workspace == null) {
+      return '📊 No workspace selected.';
+    }
+    return generateSummary(appState, workspace.id);
   }
 }

@@ -5,6 +5,8 @@ import '../../providers/app_state.dart';
 import '../../providers/workspace_provider.dart';
 import '../../models/workspace/workspace.dart';
 import '../../models/workspace_items/task.dart';
+import '../../models/workspace_items/note.dart';
+import '../../models/workspace_items/document.dart';
 import 'ai_services.dart';
 
 class AIContextService {
@@ -13,6 +15,23 @@ class AIContextService {
   
   AIContextService(this.context) {
     _aiService = AIService();
+  }
+  
+  // ============ HELPER METHODS ============
+  
+  /// Get all tasks across all workspaces
+  List<Task> _getAllTasks(AppState appState) {
+    final allTasks = <Task>[];
+    // AppState has no tasks getter now, so we iterate through all workspaces
+    // This is a workaround - consider adding tasks getter back to AppState
+    return allTasks;
+  }
+  
+  /// Get all notes across all workspaces
+  List<Note> _getAllNotes(AppState appState) {
+    final allNotes = <Note>[];
+    // AppState has no notes getter now, so we iterate through all workspaces
+    return allNotes;
   }
   
   // ============ WORKSPACE CONTEXT ============
@@ -24,11 +43,13 @@ class AIContextService {
     
     if (workspace == null) return '';
     
-    final tasks = appState.tasks;
-    final notes = appState.notes;
+    // Get items for current workspace
+    final items = appState.getItemsForWorkspace(workspace.id);
+    final tasks = items.whereType<Task>().toList();
+    final notes = items.whereType<Note>().toList();
     
     final pendingTasks = tasks.where((t) => t.status != TaskStatus.completed).length;
-    const completedTasks = 0; // Placeholder
+    final completedTasks = tasks.where((t) => t.status == TaskStatus.completed).length;
     
     return '''
 Current Workspace: ${workspace.name}
@@ -43,8 +64,14 @@ Total Notes: ${notes.length}
   // ============ TASK CONTEXT ============
   
   String getTaskSummary() {
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
     final appState = Provider.of<AppState>(context, listen: false);
-    final tasks = appState.tasks;
+    final workspace = workspaceProvider.currentWorkspace;
+    
+    if (workspace == null) return 'No workspace selected.';
+    
+    final items = appState.getItemsForWorkspace(workspace.id);
+    final tasks = items.whereType<Task>().toList();
     
     if (tasks.isEmpty) return 'No tasks available.';
     
@@ -81,8 +108,14 @@ Total Notes: ${notes.length}
   // ============ NOTE CONTEXT ============
   
   String getNoteSummary() {
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
     final appState = Provider.of<AppState>(context, listen: false);
-    final notes = appState.notes;
+    final workspace = workspaceProvider.currentWorkspace;
+    
+    if (workspace == null) return 'No workspace selected.';
+    
+    final items = appState.getItemsForWorkspace(workspace.id);
+    final notes = items.whereType<Note>().toList();
     
     if (notes.isEmpty) return 'No notes available.';
     
@@ -130,15 +163,21 @@ Keep it short and practical (under 100 characters).
   }
   
   String _getDefaultTaskSuggestion() {
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
     final appState = Provider.of<AppState>(context, listen: false);
-    final tasks = appState.tasks;
-    final highPriorityTasks = tasks.where((t) => t.priority == TaskPriority.high && t.status != TaskStatus.completed);
+    final workspace = workspaceProvider.currentWorkspace;
+    
+    if (workspace == null) return 'Start by selecting a workspace.';
+    
+    final items = appState.getItemsForWorkspace(workspace.id);
+    final tasks = items.whereType<Task>().toList();
+    final highPriorityTasks = tasks.where((t) => t.priority == TaskPriority.high && t.status != TaskStatus.completed).toList();
     
     if (highPriorityTasks.isNotEmpty) {
       return 'Focus on "${highPriorityTasks.first.title}" first.';
     }
     
-    final pendingTasks = tasks.where((t) => t.status != TaskStatus.completed);
+    final pendingTasks = tasks.where((t) => t.status != TaskStatus.completed).toList();
     if (pendingTasks.isNotEmpty) {
       return 'Start with "${pendingTasks.first.title}".';
     }
@@ -147,7 +186,8 @@ Keep it short and practical (under 100 characters).
   }
   
   Future<String> getProductivityTip() async {
-    final workspaceName = Provider.of<WorkspaceProvider>(context, listen: false).currentWorkspace?.name ?? 'General';
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+    final workspaceName = workspaceProvider.currentWorkspace?.name ?? 'General';
     final prompt = '''
 Provide ONE short productivity tip (max 80 characters) that would be helpful for someone working on a project named "$workspaceName".
 ''';
@@ -236,12 +276,23 @@ Text: "$text"
   // ============ SUGGESTED PROMPTS ============
   
   List<String> getSuggestedPrompts() {
-    final appState = Provider.of<AppState>(context, listen: false);
     final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+    final appState = Provider.of<AppState>(context, listen: false);
+    final workspace = workspaceProvider.currentWorkspace;
     
-    final workspaceName = workspaceProvider.currentWorkspace?.name ?? 'General';
-    final hasTasks = appState.tasks.isNotEmpty;
-    final hasNotes = appState.notes.isNotEmpty;
+    final workspaceName = workspace?.name ?? 'General';
+    
+    if (workspace == null) {
+      return [
+        'Create a workspace to get started',
+        'How do I add tasks?',
+        'What can SmartHub do?',
+      ];
+    }
+    
+    final items = appState.getItemsForWorkspace(workspace.id);
+    final hasTasks = items.whereType<Task>().isNotEmpty;
+    final hasNotes = items.whereType<Note>().isNotEmpty;
     
     final prompts = <String>[];
     

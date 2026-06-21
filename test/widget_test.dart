@@ -13,7 +13,7 @@ import 'package:cixiohub_mobile/main.dart';
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const CixioHubApp());
+    await tester.pumpWidget(const SmartHubApp());
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

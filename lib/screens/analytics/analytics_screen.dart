@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../providers/app_state.dart';
+import '../../models/workspace_items/task.dart';
 import '../../themes/app_colors.dart';
 import '../../widgets/glass/glass_card.dart';
 
@@ -15,10 +16,12 @@ class AnalyticsScreen extends StatelessWidget {
     final appState = Provider.of<AppState>(context);
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     
-    // Calculate stats
-    final totalTasks = appState.tasks.length;
-    final completedTasks = appState.tasks.where((t) => t.isCompleted).length;
-    final completionRate = totalTasks > 0 ? completedTasks / totalTasks : 0;
+    // Get all tasks from all workspaces
+    final allItems = appState.getAllWorkspaceItems();
+    final allTasks = allItems.whereType<Task>().toList();
+    final totalTasks = allTasks.length;
+    final completedTasks = allTasks.where((t) => t.isCompleted).length;
+    final completionRate = totalTasks > 0 ? (completedTasks / totalTasks).toDouble() : 0.0;
     final totalFocusMinutes = appState.totalFocusMinutesToday;
     
     return Scaffold(
@@ -27,6 +30,10 @@ class AnalyticsScreen extends StatelessWidget {
         title: const Text('Analytics'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -65,8 +72,10 @@ class AnalyticsScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Task Completion Rate', style: TextStyle(color: textColor)),
-                      Text('${(completionRate * 100).toStringAsFixed(0)}%', 
-                           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      Text(
+                        '${(completionRate * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.aiCyan),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -128,13 +137,20 @@ class AnalyticsScreen extends StatelessWidget {
     required IconData icon,
     required Color color,
   }) {
+    // ✅ FIXED: Removed context usage
     return GlassCard(
       child: Column(
         children: [
           Icon(icon, color: color, size: 32),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          Text(title, style: const TextStyle(fontSize: 12)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            title,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
         ],
       ),
     );
@@ -157,16 +173,19 @@ class AnalyticsScreen extends StatelessWidget {
           .fold(0, (sum, s) => sum + (s.actualSeconds ~/ 60));
     }).toList();
     
+    // Handle empty data
+    final maxY = focusMinutes.isEmpty ? 10.0 : (focusMinutes.reduce((a, b) => a > b ? a : b).toDouble() + 10.0);
+    
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.center,
-        maxY: focusMinutes.reduce((a, b) => a > b ? a : b).toDouble() + 10,
+        maxY: maxY,
         barGroups: List.generate(7, (i) {
           return BarChartGroupData(
             x: i,
             barRods: [
               BarChartRodData(
-                toY: focusMinutes[i].toDouble(),
+                toY: i < focusMinutes.length ? focusMinutes[i].toDouble() : 0,
                 color: AppColors.aiCyan,
                 width: 20,
                 borderRadius: BorderRadius.circular(4),
@@ -180,7 +199,9 @@ class AnalyticsScreen extends StatelessWidget {
               showTitles: true,
               getTitlesWidget: (value, meta) {
                 const weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                return Text(weekdays[value.toInt()]);
+                final index = value.toInt();
+                if (index < 0 || index >= weekdays.length) return const Text('');
+                return Text(weekdays[index]);
               },
             ),
           ),
@@ -195,16 +216,19 @@ class AnalyticsScreen extends StatelessWidget {
   }
   
   String _getProductivityInsight(AppState appState) {
-    final totalTasks = appState.tasks.length;
-    final completedTasks = appState.tasks.where((t) => t.isCompleted).length;
+    // ✅ FIXED: Use getAllWorkspaceItems().whereType<Task>()
+    final allItems = appState.getAllWorkspaceItems();
+    final allTasks = allItems.whereType<Task>().toList();
+    final totalTasks = allTasks.length;
+    final completedTasks = allTasks.where((t) => t.isCompleted).length;
     final totalFocusMinutes = appState.totalFocusMinutesToday;
     
     if (totalTasks == 0) {
-      return 'Start by adding some tasks to track your productivity!';
+      return '📝 Start by adding some tasks to track your productivity!';
     }
     
-    if (completedTasks == totalTasks) {
-      return '🎉 Amazing! You\'ve completed all your tasks. Time to celebrate!';
+    if (completedTasks == totalTasks && totalTasks > 0) {
+      return '🎉 Amazing! You\'ve completed all your tasks. Time to celebrate and plan your next goals!';
     }
     
     if (totalFocusMinutes > 60) {

@@ -1,5 +1,4 @@
 // lib/screens/focus/focus_timer_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,11 +6,10 @@ import '../../providers/app_state.dart';
 import '../../models/focus_session.dart';
 import '../../themes/app_colors.dart';
 import '../../widgets/glass/glass_card.dart';
+import '../../services/local/notification_service.dart';
 
 class FocusTimerScreen extends StatefulWidget {
-  final String? initialTaskId;
-  
-  const FocusTimerScreen({super.key, this.initialTaskId});
+  const FocusTimerScreen({super.key});
 
   @override
   State<FocusTimerScreen> createState() => _FocusTimerScreenState();
@@ -26,15 +24,36 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
   bool _isRunning = false;
   bool _isBreak = false;
   int _completedSessions = 0;
+  int _totalMinutesFocused = 0;
   
   final List<int> _focusDurations = [15, 25, 30, 45, 60];
   int _selectedDuration = 25;
-  String? _selectedTaskId;
   
+  // Motivational messages for completion
+  final List<String> _motivationalMessages = [
+    '🎯 Amazing focus! You\'re building momentum!',
+    '💪 Great job! Every session makes you stronger!',
+    '🌟 Fantastic! Your discipline is inspiring!',
+    '🔥 You\'re on fire! Keep up the great work!',
+    '📈 Excellent progress! You\'re getting better every day!',
+    '🧠 Your brain is getting sharper! Keep going!',
+    '🚀 What a productive session! You\'re unstoppable!',
+    '✨ Brilliant focus! Small steps lead to big achievements!',
+    '💎 You\'re building a diamond habit! Stay consistent!',
+    '🏆 Champion mindset! Another session conquered!',
+  ];
+  
+  final List<String> _breakMessages = [
+    '☕ Time to recharge! Take a short break.',
+    '🧘 Stretch and breathe. You\'ve earned it!',
+    '💧 Hydrate and refresh for the next session.',
+    '🌿 Step away for a moment. Clear your mind.',
+    '🎵 Enjoy a quick break. You deserve it!',
+  ];
+
   @override
   void initState() {
     super.initState();
-    _selectedTaskId = widget.initialTaskId;
     _remainingSeconds = _selectedDuration * 60;
     
     _controller = AnimationController(
@@ -65,7 +84,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       startTime: DateTime.now(),
       durationSeconds: _selectedDuration * 60,
-      taskId: _selectedTaskId,
+      taskId: null,  // No task linked
     );
     
     _isRunning = true;
@@ -101,14 +120,16 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
     _pauseTimer();
     
     if (_currentSession != null) {
+      final actualSeconds = (_selectedDuration * 60) - _remainingSeconds;
+      
       final completedSession = FocusSession(
         id: _currentSession!.id,
         startTime: _currentSession!.startTime,
         endTime: DateTime.now(),
         durationSeconds: _currentSession!.durationSeconds,
-        actualSeconds: (_selectedDuration * 60) - _remainingSeconds,
+        actualSeconds: actualSeconds,
         completed: true,
-        taskId: _currentSession!.taskId,
+        taskId: null,  // No task linked
       );
       
       final appState = Provider.of<AppState>(context, listen: false);
@@ -116,19 +137,54 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
       
       setState(() {
         _completedSessions++;
+        _totalMinutesFocused += (actualSeconds / 60).round();
         _isBreak = true;
         _selectedDuration = 5;
         _remainingSeconds = 5 * 60;
         _currentSession = null;
       });
       
-      _showCompletionDialog();
+      // ✅ Show motivational completion notification
+      await _showCompletionNotification(actualSeconds);
+      
+      // ✅ Show break dialog
+      _showBreakDialog();
     }
   }
   
-  void _showCompletionDialog() {
+  Future<void> _showCompletionNotification(int actualSeconds) async {
+    final minutesFocused = (actualSeconds / 60).round();
+    
+    // Pick a random motivational message
+    final message = _motivationalMessages[DateTime.now().millisecondsSinceEpoch % _motivationalMessages.length];
+    
+    // Show immediate notification
+    // In _showCompletionNotification method
+    await NotificationService().showImmediateNotification(  // ✅ Changed to public method
+      title: '🎉 Focus Session Complete!',
+      body: '$message (${minutesFocused} minutes)',
+      payload: 'focus_session_${DateTime.now().millisecondsSinceEpoch}',
+    );
+    
+    // Also show a snackbar
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎉 $message'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+  
+  void _showBreakDialog() {
+    // Pick a random break message
+    final breakMessage = _breakMessages[DateTime.now().millisecondsSinceEpoch % _breakMessages.length];
+    
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Icon(Icons.celebration, size: 48, color: AppColors.aiCyan),
@@ -136,24 +192,59 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Focus Session Complete!',
+              'Focus Session Complete! 🎉',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text('Time to take a ${_isBreak ? '5-minute break' : 'break'}'),
+            Text(
+              breakMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.aiCyan.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.timer, color: AppColors.aiCyan, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Take a 5-minute break',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              if (_isBreak) {
-                _startBreak();
-              } else {
-                _resetTimer();
-              }
+              _startBreak();
             },
-            child: const Text('OK'),
+            child: const Text('Start Break'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _resetTimer();
+              setState(() {
+                _isBreak = false;
+                _selectedDuration = 25;
+                _remainingSeconds = 25 * 60;
+                _controller.duration = Duration(seconds: _remainingSeconds);
+                _controller.reset();
+              });
+            },
+            child: const Text('Skip Break'),
           ),
         ],
       ),
@@ -163,7 +254,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
   void _startBreak() {
     setState(() {
       _isBreak = false;
-      _selectedDuration = _focusDurations.first;
+      _selectedDuration = 25;  // Back to focus mode
       _remainingSeconds = _selectedDuration * 60;
       _controller.duration = Duration(seconds: _remainingSeconds);
       _controller.reset();
@@ -202,7 +293,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
               children: [
                 const SizedBox(height: 20),
                 
-                // Professional Timer Circle
+                // Timer Circle
                 Container(
                   width: 280,
                   height: 280,
@@ -303,61 +394,9 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
                     }).toList(),
                   ),
                 
-                const SizedBox(height: 24),
-                
-                // Task selector - Improved with container styling
-                if (!_isRunning && !_isBreak)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Consumer<AppState>(
-                      builder: (context, appState, child) {
-                        final pendingTasks = appState.tasks.where((t) => !t.isCompleted).toList();
-                        return DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            hint: Text(
-                              'Link to task (optional)',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                            value: _selectedTaskId,
-                            isExpanded: true,
-                            icon: Icon(Icons.arrow_drop_down, color: AppColors.aiCyan),
-                            dropdownColor: Theme.of(context).cardColor,
-                            items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text('None - Just focus'),
-                              ),
-                              ...pendingTasks.map((task) => DropdownMenuItem(
-                                value: task.id,
-                                child: Text(
-                                  task.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              )),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedTaskId = value;
-                              });
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                
                 const SizedBox(height: 48),
                 
-                // Control buttons - Scrollable horizontally
+                // Control buttons
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -426,7 +465,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
                             '$_completedSessions',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                           ),
-                          const Text('Completed', style: TextStyle(fontSize: 12)),
+                          const Text('Sessions', style: TextStyle(fontSize: 12)),
                         ],
                       ),
                       Container(
@@ -439,7 +478,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
                           Icon(Icons.trending_up, color: AppColors.aiCyan, size: 24),
                           const SizedBox(height: 4),
                           Text(
-                            '${(_completedSessions * 25)}',
+                            '$_totalMinutesFocused',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                           ),
                           const Text('Minutes', style: TextStyle(fontSize: 12)),

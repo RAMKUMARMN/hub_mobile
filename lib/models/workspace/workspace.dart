@@ -29,15 +29,62 @@ class Workspace {
     'updatedAt': updatedAt.toIso8601String(),
   };
 
-  factory Workspace.fromJson(Map<String, dynamic> json) => Workspace(
-    id: json['id'],
-    name: json['name'],
-    type: WorkspaceType.values[json['type']],
-    icon: json['icon'],
-    color: Color(json['color']),
-    createdAt: DateTime.parse(json['createdAt']),
-    updatedAt: DateTime.parse(json['updatedAt']),
+
+
+factory Workspace.fromJson(Map<String, dynamic> json) {
+  WorkspaceType workspaceType = WorkspaceType.project;
+
+  // Handle backend sending either string or int type
+  if (json['type'] is int) {
+    final index = json['type'] as int;
+    if (index >= 0 && index < WorkspaceType.values.length) {
+      workspaceType = WorkspaceType.values[index];
+    }
+  } else if (json['type'] is String) {
+    workspaceType =
+        json['type'].toString().toLowerCase() == 'general'
+            ? WorkspaceType.general
+            : WorkspaceType.project;
+  }
+
+  // Handle backend sending hex color string (#0080FF)
+  Color workspaceColor = Colors.blue;
+
+  if (json['color'] is int) {
+    workspaceColor = Color(json['color']);
+  } else if (json['color'] is String) {
+    try {
+      String colorString = json['color'].toString().replaceFirst('#', '');
+
+      if (colorString.length == 6) {
+        colorString = 'FF$colorString';
+      }
+
+      workspaceColor = Color(
+        int.parse(colorString, radix: 16),
+      );
+    } catch (_) {
+      workspaceColor = Colors.blue;
+    }
+  }
+
+  return Workspace(
+    id: json['id']?.toString() ?? '',
+    name: json['name']?.toString() ?? 'Untitled',
+    type: workspaceType,
+    icon: json['icon']?.toString() ?? '📁',
+    color: workspaceColor,
+
+    // Support BOTH backend snake_case and frontend camelCase
+    createdAt: DateTime.parse(
+      (json['created_at'] ?? json['createdAt']).toString(),
+    ),
+
+    updatedAt: DateTime.parse(
+      (json['updated_at'] ?? json['updatedAt']).toString(),
+    ),
   );
+}
 }
 
 enum WorkspaceType {

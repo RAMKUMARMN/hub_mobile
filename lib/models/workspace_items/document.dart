@@ -1,4 +1,5 @@
 // lib/models/workspace_items/document.dart
+
 import 'package:flutter/material.dart';
 import 'workspace_item.dart';
 import '../../themes/app_colors.dart';
@@ -38,20 +39,37 @@ class Document extends WorkspaceItem {
     'updatedAt': updatedAt.toIso8601String(),
   };
 
-  // ✅ ADD THIS FACTORY METHOD
+  // FIXED: backend DocumentResponse sends:
+  //   id, workspace_id, filename, filetype, size, created_at
+  // It does NOT send: title, subtitle, filePath, updatedAt (camelCase
+  // versions never existed; updated_at doesn't exist on this endpoint at all).
   factory Document.fromJson(Map<String, dynamic> json) {
+    final createdAt = DateTime.parse(
+      (json['created_at'] ?? json['createdAt']).toString(),
+    );
+
     return Document(
-      id: json['id'],
-      workspaceId: json['workspaceId'],
-      title: json['title'],
-      subtitle: json['subtitle'],
-      icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
-      filePath: json['filePath'],
-      fileType: json['fileType'],
-      fileSize: json['fileSize'],
-      thumbnail: json['thumbnail'],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      id: json['id'].toString(),
+      workspaceId: (json['workspace_id'] ?? json['workspaceId'])?.toString() ?? '',
+      // Backend has no "title"/"subtitle" fields for documents — derive
+      // sensible display values from filename/filetype instead.
+      title: (json['filename'] ?? json['title'] ?? 'Untitled').toString(),
+      subtitle: (json['filetype'] ?? json['subtitle'] ?? '').toString(),
+      icon: Icons.insert_drive_file,
+      // Backend has no file path/URL field on this response — use download
+      // endpoint id-based lookup instead of expecting a literal path.
+      filePath: (json['filePath'] ?? json['file_path'] ?? '').toString(),
+      fileType: (json['filetype'] ?? json['fileType'] ?? '').toString(),
+      fileSize: json['size'] is int
+          ? json['size'] as int
+          : int.tryParse((json['size'] ?? json['fileSize'] ?? '0').toString()) ?? 0,
+      thumbnail: json['thumbnail']?.toString(),
+      createdAt: createdAt,
+      // Backend doesn't return updated_at for documents; fall back to
+      // created_at rather than crashing on a non-nullable DateTime.
+      updatedAt: json['updated_at'] != null || json['updatedAt'] != null
+          ? DateTime.parse((json['updated_at'] ?? json['updatedAt']).toString())
+          : createdAt,
     );
   }
   

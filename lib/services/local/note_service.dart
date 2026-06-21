@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../providers/workspace_provider.dart';
-import '../api/note_api.dart';
+import '../api/note_api_service.dart';
 import '../../models/workspace_items/note.dart';
 import '../../utils/helpers.dart';
 import '../../utils/validators.dart';
 
 class NoteService {
   final BuildContext context;
+  final NoteApiService _noteApi = NoteApiService();  // ✅ NEW: Instance of NoteApiService
 
   NoteService({required this.context});
 
@@ -50,11 +51,14 @@ class NoteService {
     // Add to UI immediately for better UX
     appState.addWorkspaceItem(newNote, workspaceId: workspaceId);
     appState.addActivity('📝 New note created: $title');
-    Helpers.showSuccess(context, 'Note saved!');
+    if (context.mounted) {
+      Helpers.showSuccess(context, 'Note saved!');
+    }
     
     // Then try to save to backend in background
     try {
-      await NoteApi.createNote(
+      // ✅ FIXED: Using _noteApi instead of NoteApi
+      await _noteApi.createNote(
         title: title,
         content: content,
         tags: tags,
@@ -62,97 +66,103 @@ class NoteService {
       );
     } catch (e) {
       // Backend save failed, but note already saved locally
-      print('Backend save failed, but note saved locally: $e');
+      debugPrint('Backend save failed, but note saved locally: $e');
     }
     
     return true;
   }
 
-  // lib/services/local/note_service.dart - Update showCreateNoteDialog
+  /// Show create note dialog
+  void showCreateNoteDialog({String? initialContent}) {
+    final TextEditingController titleController = TextEditingController();
+    final TextEditingController contentController = TextEditingController(text: initialContent);
 
-void showCreateNoteDialog({String? initialContent}) {
-  final TextEditingController titleController = TextEditingController();
-  final TextEditingController contentController = TextEditingController(text: initialContent);
-
-  showDialog(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setState) {
-        return AlertDialog(
-          title: const Text('New Note'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 350,  // Fixed height to prevent overflow
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    hintText: 'Title',
-                    border: OutlineInputBorder(),
-                  ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: TextField(
-                    controller: contentController,
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('New Note'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 350,  // Fixed height to prevent overflow
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
                     decoration: const InputDecoration(
-                      hintText: 'Write your note here...',
+                      hintText: 'Title',
                       border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
                     ),
-                    maxLines: null,  // Unlimited lines
-                    expands: true,   // Fill available space
+                    autofocus: true,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: contentController,
+                      decoration: const InputDecoration(
+                        hintText: 'Write your note here...',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      maxLines: null,  // Unlimited lines
+                      expands: true,   // Fill available space
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (titleController.text.trim().isEmpty) {
-                  Helpers.showError(context, 'Please enter a title');
-                  return;
-                }
-                Navigator.pop(dialogContext);
-                await createNote(
-                  title: titleController.text.trim(),
-                  content: contentController.text,
-                );
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (titleController.text.trim().isEmpty) {
+                    Helpers.showError(context, 'Please enter a title');
+                    return;
+                  }
+                  Navigator.pop(dialogContext);
+                  await createNote(
+                    title: titleController.text.trim(),
+                    content: contentController.text,
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   /// Update existing note
   Future<bool> updateNote(String noteId, {String? title, String? content}) async {
     try {
-      final response = await NoteApi.updateNote(
+      // ✅ FIXED: Using _noteApi instead of NoteApi
+      final response = await _noteApi.updateNote(
         noteId: noteId,
         title: title,
         content: content,
       );
       
       if (response['success'] == true) {
-        Helpers.showSuccess(context, 'Note updated!');
+        if (context.mounted) {
+          Helpers.showSuccess(context, 'Note updated!');
+        }
         return true;
       }
-      Helpers.showError(context, response['error'] ?? 'Failed to update note');
+      if (context.mounted) {
+        Helpers.showError(context, response['error'] ?? 'Failed to update note');
+      }
       return false;
     } catch (e) {
-      Helpers.showError(context, 'Failed to update note: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to update note: ${e.toString()}');
+      }
       return false;
     }
   }
@@ -160,15 +170,22 @@ void showCreateNoteDialog({String? initialContent}) {
   /// Delete note
   Future<bool> deleteNote(String noteId) async {
     try {
-      final response = await NoteApi.deleteNote(noteId);
+      // ✅ FIXED: Using _noteApi instead of NoteApi
+      final response = await _noteApi.deleteNote(noteId);
       if (response['success'] == true) {
-        Helpers.showSuccess(context, 'Note deleted');
+        if (context.mounted) {
+          Helpers.showSuccess(context, 'Note deleted');
+        }
         return true;
       }
-      Helpers.showError(context, response['error'] ?? 'Failed to delete note');
+      if (context.mounted) {
+        Helpers.showError(context, response['error'] ?? 'Failed to delete note');
+      }
       return false;
     } catch (e) {
-      Helpers.showError(context, 'Failed to delete note: ${e.toString()}');
+      if (context.mounted) {
+        Helpers.showError(context, 'Failed to delete note: ${e.toString()}');
+      }
       return false;
     }
   }

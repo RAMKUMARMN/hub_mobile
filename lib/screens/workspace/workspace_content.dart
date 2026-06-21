@@ -1,5 +1,4 @@
 // lib/screens/workspace/workspace_content.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/app_state.dart';
@@ -24,24 +23,12 @@ class WorkspaceContent extends StatelessWidget {
     final currentWorkspace = workspaceProvider.currentWorkspace;
     final filter = workspaceProvider.currentFilter.toLowerCase();
     
-    print('=== WORKSPACE CONTENT DEBUG ===');
-    print('Current workspace: ${currentWorkspace?.name}');
-    print('Filter: $filter');
-    print('Total items in AppState: ${appState.workspaceItems.length}');
-    
     if (currentWorkspace == null) {
       return const Center(child: Text('Select a workspace'));
     }
     
-    // FIXED: Use getItemsForWorkspace - remove duplicate lines
     final allItems = appState.getItemsForWorkspace(currentWorkspace.id);
     
-    print('All items count: ${allItems.length}');
-    for (var item in allItems) {
-      print('Item: ${item.title} - ${item.runtimeType} - workspaceId: ${item.workspaceId}');
-    }
-    
-    // Apply filter based on selected type
     final filteredItems = allItems.where((item) {
       if (filter == 'all') return true;
       if (filter == 'tasks') return item is Task;
@@ -50,25 +37,11 @@ class WorkspaceContent extends StatelessWidget {
       return true;
     }).toList();
     
-    print('Filtered items count: ${filteredItems.length}');
-    
     if (filteredItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              margin: const EdgeInsets.only(bottom: 20),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'DEBUG: Items in workspace: ${allItems.length}',
-                style: const TextStyle(color: Colors.cyan, fontSize: 14),
-              ),
-            ),
             Icon(_getEmptyIcon(filter), size: 64, color: Colors.grey),
             const SizedBox(height: 16),
             Text(
@@ -97,8 +70,6 @@ class WorkspaceContent extends StatelessWidget {
       itemBuilder: (context, index) {
         final item = filteredItems[index];
         
-        print('Building item: ${item.title} - Type: ${item.runtimeType}');
-        
         if (item is Task) {
           return TaskCard(
             task: item,
@@ -126,35 +97,39 @@ class WorkspaceContent extends StatelessWidget {
   
   void _toggleTaskComplete(BuildContext context, Task task) {
     final appState = Provider.of<AppState>(context, listen: false);
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+    final workspaceId = workspaceProvider.currentWorkspace?.id ?? task.workspaceId;
     
-    final updatedTask = Task(
-      id: task.id,
-      workspaceId: task.workspaceId,
-      title: task.title,
-      subtitle: task.subtitle,
-      icon: task.icon,
-      description: task.description,
-      priority: task.priority,
+    final updatedTask = task.copyWith(
       status: task.status == TaskStatus.completed ? TaskStatus.pending : TaskStatus.completed,
-      dueDate: task.dueDate,
-      reminderAt: task.reminderAt,
-      reminderEnabled: task.reminderEnabled,
-      reminderCompleted: task.reminderCompleted,
-      createdAt: task.createdAt,
       updatedAt: DateTime.now(),
     );
     
-    final index = appState.workspaceItems.indexWhere((item) => item.id == task.id);
+    final items = appState.getItemsForWorkspace(workspaceId);
+    final index = items.indexWhere((item) => item.id == task.id);
     if (index != -1) {
-      appState.updateWorkspaceItem(index, updatedTask);
+      appState.updateWorkspaceItem(index, updatedTask, workspaceId: workspaceId);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(updatedTask.status == TaskStatus.completed 
+              ? 'Task completed! ✅' 
+              : 'Task marked as pending'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
     }
   }
   
   void _deleteItem(BuildContext context, WorkspaceItem item, AppState appState) {
-    final index = appState.workspaceItems.indexWhere((i) => i.id == item.id);
+    final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+    final workspaceId = workspaceProvider.currentWorkspace?.id ?? item.workspaceId;
+    
+    final items = appState.getItemsForWorkspace(workspaceId);
+    final index = items.indexWhere((i) => i.id == item.id);
     if (index != -1) {
       final deletedItem = item;
-      appState.removeWorkspaceItem(index);
+      appState.removeWorkspaceItem(index, workspaceId: workspaceId);
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -163,7 +138,7 @@ class WorkspaceContent extends StatelessWidget {
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () {
-              appState.addWorkspaceItem(deletedItem);
+              appState.addWorkspaceItem(deletedItem, workspaceId: workspaceId);
             },
           ),
         ),
@@ -171,7 +146,6 @@ class WorkspaceContent extends StatelessWidget {
     }
   }
   
-  /// Helper to show DateTime picker for reminders
   Future<DateTime?> _showDateTimePicker(BuildContext context, {DateTime? initialDateTime}) async {
     final DateTime? date = await showDatePicker(
       context: context,
@@ -179,33 +153,22 @@ class WorkspaceContent extends StatelessWidget {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    
     if (date == null) return null;
     
     final TimeOfDay? time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDateTime ?? DateTime.now()),
     );
-    
     if (time == null) return null;
     
-    return DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    );
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
   
   void _editTask(BuildContext context, Task task) {
-    // Edit task dialog with reminder support
     final TextEditingController titleController = TextEditingController(text: task.title);
     final TextEditingController descriptionController = TextEditingController(text: task.description);
     String selectedPriority = task.priority.name;
     DateTime? selectedDueDate = task.dueDate;
-    
-    // Reminder state
     bool enableReminder = task.reminderEnabled;
     DateTime? selectedReminderTime = task.reminderAt;
 
@@ -219,22 +182,17 @@ class WorkspaceContent extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Task Title
                   TextField(
                     controller: titleController,
                     decoration: const InputDecoration(hintText: 'Task title'),
                   ),
                   const SizedBox(height: 12),
-                  
-                  // Description
                   TextField(
                     controller: descriptionController,
                     decoration: const InputDecoration(hintText: 'Description'),
                     maxLines: 3,
                   ),
                   const SizedBox(height: 12),
-                  
-                  // Priority Dropdown
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: BoxDecoration(
@@ -246,17 +204,15 @@ class WorkspaceContent extends StatelessWidget {
                         value: selectedPriority,
                         isExpanded: true,
                         items: const [
-                          DropdownMenuItem(value: 'low', child: Text('🔵 Low Priority')),
-                          DropdownMenuItem(value: 'medium', child: Text('🟡 Medium Priority')),
-                          DropdownMenuItem(value: 'high', child: Text('🔴 High Priority')),
+                          DropdownMenuItem(value: 'low', child: Text('🔵 Low')),
+                          DropdownMenuItem(value: 'medium', child: Text('🟡 Medium')),
+                          DropdownMenuItem(value: 'high', child: Text('🔴 High')),
                         ],
                         onChanged: (value) => setDialogState(() => selectedPriority = value!),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
-                  // Due Date Picker
                   ListTile(
                     leading: const Icon(Icons.calendar_today),
                     title: Text(
@@ -276,8 +232,6 @@ class WorkspaceContent extends StatelessWidget {
                       }
                     },
                   ),
-                  
-                  // Reminder Switch
                   SwitchListTile(
                     title: const Text('Set Reminder'),
                     subtitle: const Text('Get notified before this task'),
@@ -291,8 +245,6 @@ class WorkspaceContent extends StatelessWidget {
                       });
                     },
                   ),
-                  
-                  // Reminder Time Picker (only shown if enabled)
                   if (enableReminder)
                     ListTile(
                       leading: const Icon(Icons.access_time, color: AppColors.aiCyan),
@@ -322,8 +274,9 @@ class WorkspaceContent extends StatelessWidget {
               ElevatedButton(
                 onPressed: () async {
                   final appState = Provider.of<AppState>(context, listen: false);
+                  final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+                  final workspaceId = workspaceProvider.currentWorkspace?.id ?? task.workspaceId;
                   
-                  // Validate reminder time if enabled
                   if (enableReminder && selectedReminderTime == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Please select a reminder time')),
@@ -333,46 +286,32 @@ class WorkspaceContent extends StatelessWidget {
                   
                   TaskPriority priorityEnum;
                   switch (selectedPriority) {
-                    case 'high':
-                      priorityEnum = TaskPriority.high;
-                      break;
-                    case 'medium':
-                      priorityEnum = TaskPriority.medium;
-                      break;
-                    default:
-                      priorityEnum = TaskPriority.low;
+                    case 'high': priorityEnum = TaskPriority.high; break;
+                    case 'medium': priorityEnum = TaskPriority.medium; break;
+                    default: priorityEnum = TaskPriority.low;
                   }
                   
-                  final updatedTask = Task(
-                    id: task.id,
-                    workspaceId: task.workspaceId,
+                  final updatedTask = task.copyWith(
                     title: titleController.text.trim(),
-                    subtitle: descriptionController.text.isEmpty 
-                        ? "Task" 
-                        : descriptionController.text,
-                    icon: task.icon,
+                    subtitle: descriptionController.text.isEmpty ? "Task" : descriptionController.text,
                     description: descriptionController.text,
                     priority: priorityEnum,
-                    status: task.status,
                     dueDate: selectedDueDate,
                     reminderAt: enableReminder ? selectedReminderTime : null,
                     reminderEnabled: enableReminder,
                     reminderCompleted: enableReminder ? false : task.reminderCompleted,
-                    createdAt: task.createdAt,
                     updatedAt: DateTime.now(),
                   );
                   
-                  final index = appState.workspaceItems.indexWhere((i) => i.id == task.id);
+                  final items = appState.getItemsForWorkspace(workspaceId);
+                  final index = items.indexWhere((i) => i.id == task.id);
                   if (index != -1) {
-                    appState.updateWorkspaceItem(index, updatedTask);
+                    appState.updateWorkspaceItem(index, updatedTask, workspaceId: workspaceId);
                     
-                    // Update notification if reminder changed
                     if (enableReminder && selectedReminderTime != null) {
-                      // Cancel old notification (if any)
                       if (task.reminderAt != null) {
                         await NotificationService().cancelNotification(task.id);
                       }
-                      // Schedule new notification
                       await NotificationService().scheduleCustomReminder(
                         title: 'Task Reminder',
                         body: updatedTask.title,
@@ -380,7 +319,6 @@ class WorkspaceContent extends StatelessWidget {
                         reminderId: updatedTask.id,
                       );
                     } else if (!enableReminder && task.reminderEnabled) {
-                      // Cancel notification if reminder was disabled
                       await NotificationService().cancelNotification(task.id);
                     }
                   }
@@ -406,9 +344,7 @@ class WorkspaceContent extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(note.title),
-        content: SingleChildScrollView(
-          child: Text(note.content),
-        ),
+        content: SingleChildScrollView(child: Text(note.content)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
