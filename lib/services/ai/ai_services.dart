@@ -6,22 +6,27 @@ class AIService {
   final ApiClient _client = ApiClient();
 
   /// Send a message to AI with streaming
-  Future<void> sendMessageStream({
-    required String message,
-    required void Function(String chunk) onChunk,
-    String? workspaceId,
-    String? chatId,
-  }) async {
-    await _client.streamRequest(
-      endpoint: '/ai/chat/stream',
-      body: {
-        'prompt': message,
-        if (workspaceId != null) 'workspace_id': workspaceId,
-        if (chatId != null) 'chat_id': chatId,
-      },
-      onChunk: onChunk,
-    );
-  }
+  // lib/services/ai/ai_services.dart
+
+Future<void> sendMessageStream({
+  required String message,
+  required void Function(String chunk) onChunk,
+  String? workspaceId,
+  String? chatId,
+}) async {
+  final body = {
+    'prompt': message,
+    if (workspaceId != null) 'workspace_id': workspaceId,
+    // ✅ Only include chat_id if it's not null and looks like a UUID
+    if (chatId != null && chatId.isNotEmpty) 'chat_id': chatId,
+  };
+  
+  await _client.streamRequest(
+    endpoint: '/ai/chat/stream',
+    body: body,
+    onChunk: onChunk,
+  );
+}
 
   /// Send a message to AI (non-streaming)
   Future<String> sendMessage(String message, {String? workspaceId}) async {

@@ -21,23 +21,23 @@ class ApiClient {
   }
 
   /// Get headers with authorization
-Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
-  final headers = {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-  };
-  
-  if (includeAuth) {
-    final token = await getToken();
-    if (token != null && token.isNotEmpty) {
-      headers["Authorization"] = "Bearer $token";
-    } else {
-      logger.w('⚠️ No valid token found for authenticated request');
+  Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
+    final headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+    
+    if (includeAuth) {
+      final token = await getToken();
+      if (token != null && token.isNotEmpty) {
+        headers["Authorization"] = "Bearer $token";
+      } else {
+        logger.w('⚠️ No valid token found for authenticated request');
+      }
     }
+    
+    return headers;
   }
-  
-  return headers;
-}
 
   /// Generic request method - THE ONLY HTTP CALLER
   Future<Map<String, dynamic>> request({
@@ -96,7 +96,6 @@ Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
     }
   }
 
-  
   /// Handle all responses uniformly
   Map<String, dynamic> _handleResponse(http.Response response) {
     try {
@@ -120,7 +119,7 @@ Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
     }
   }
 
-  /// Streaming request for AI chat
+  /// ✅ FIXED: Streaming request for AI chat with proper NDJSON parsing
   Future<void> streamRequest({
     required String endpoint,
     required Map<String, dynamic> body,
@@ -128,6 +127,9 @@ Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
     bool requiresAuth = true,
   }) async {
     try {
+      logger.i('📤 Stream request to: $endpoint');
+      logger.i('📤 Body: $body');
+      
       final request = http.Request(
         'POST',
         Uri.parse('$baseUrl$endpoint'),
@@ -137,33 +139,60 @@ Future<Map<String, String>> getHeaders({bool includeAuth = true}) async {
       request.headers.addAll(headers);
       request.body = jsonEncode(body);
       
+      logger.i('📤 Headers: ${request.headers}');
+      logger.i('📤 Body JSON: ${request.body}');
+      
       final response = await request.send();
+      
+      logger.i('📥 Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final stream = response.stream.transform(utf8.decoder);
-        
-        await for (var chunk in stream) {
-          final lines = chunk.split('\n');
-          for (var line in lines) {
-            line = line.trim();
-            if (line.isNotEmpty) {
-              try {
-                final data = jsonDecode(line);
-                if (data['response'] != null) {
-                  onChunk(data['response']);
-                }
-              } catch (e) {
-                if (line.startsWith('Error:')) {
-                  onChunk(line);
-                }
+        String buffer = ''; // ✅ Buffer to handle partial lines across chunks
+
+        await for (var part in stream) {
+          buffer += part;
+
+          // ✅ Only process complete lines; keep the remainder in buffer
+          while (buffer.contains('\n')) {
+            final newlineIndex = buffer.indexOf('\n');
+            final line = buffer.substring(0, newlineIndex).trim();
+            buffer = buffer.substring(newlineIndex + 1);
+
+            if (line.isEmpty) continue;
+
+            try {
+              final data = jsonDecode(line);
+              if (data['response'] != null) {
+                onChunk(data['response']);
+              } else if (data['error'] != null) {
+                onChunk('Error: ${data['error']}');
               }
+            } catch (e) {
+              logger.w('⚠️ Skipped malformed line: $line');
             }
           }
         }
+
+        // ✅ Handle any trailing data with no final newline
+        final trailing = buffer.trim();
+        if (trailing.isNotEmpty) {
+          try {
+            final data = jsonDecode(trailing);
+            if (data['response'] != null) {
+              onChunk(data['response']);
+            }
+          } catch (_) {
+            // Ignore incomplete trailing data
+          }
+        }
       } else {
+        final errorBody = await response.stream.bytesToString();
+        logger.e('❌ Response body: $errorBody');
         onChunk("Error: Server returned ${response.statusCode}");
       }
     } catch (e) {
+      logger.e('❌ Stream error: $e');
       onChunk("Error: ${e.toString()}");
     }
   }
