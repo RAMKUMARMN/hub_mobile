@@ -3,12 +3,16 @@ import * as path from 'path';
 
 export function discoverScreens() {
 
-    const screensDir =
-        path.join(
-            process.cwd(),
-            'lib',
-            'screens'
-        );
+    const HUB_MOBILE_ROOT = path.resolve(
+    process.cwd(),
+    ".."
+);
+
+const screensDir = path.join(
+    HUB_MOBILE_ROOT,
+    "lib",
+    "screens"
+);
 
     if (!fs.existsSync(screensDir)) {
 
