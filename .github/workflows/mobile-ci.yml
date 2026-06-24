@@ -1,0 +1,104 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main, dev, cg2]
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'test/**' 
+      - 'pubspec.lock'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    branches: [main, dev, cg2]
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'test/**' 
+      - 'pubspec.lock'
+      - '.github/workflows/mobile-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Verify Flutter installation
+        run: flutter --version
+
+      - name: Create .env file for CI
+        run: |
+          echo "API_URL=http://localhost:8000" > .env
+          echo "ENVIRONMENT=test" >> .env
+
+      - name: Decode google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+
+      - name: Decode google-services.json (debug)
+        run: |
+          mkdir -p android/app/src/debug
+          cp android/app/google-services.json android/app/src/debug/
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code (errors fail, warnings pass)
+        run: |
+          echo "🔍 Running flutter analyze..."
+          flutter analyze --no-pub > analysis_output.txt 2>&1 || true
+          cat analysis_output.txt
+          
+          if grep -q "error •" analysis_output.txt; then
+            echo "❌ Errors found! Failing build."
+            exit 1
+          else
+            echo "✅ No errors found. Continuing (warnings are OK)."
+            exit 0
+          fi
+
+      - name: Run tests
+        run: flutter test --no-pub
+
+      - name: Build Debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+      - name: Check secrets (debug only)
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Keystore secret exists"
+          else
+            echo "Keystore secret NOT found - release builds will be skipped"
+          fi
