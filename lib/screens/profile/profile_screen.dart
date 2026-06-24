@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_config.dart';
+
 import '../../models/user.dart' show User;
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
