@@ -26,17 +26,48 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _isLoading = true; _error = null; });
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
       await AuthService().login(
         _emailController.text.trim(),
         _passwordController.text,
       );
-      if (mounted) context.go('/chat');
+
+      if (!mounted) return;
+
+      context.go('/chat');
     } catch (e) {
-      setState(() { _error = 'Invalid credentials. Please try again.'; });
+      if (!mounted) return;
+
+      String message = e.toString();
+
+      if (message.startsWith('Exception: ')) {
+        message = message.replaceFirst(
+          'Exception: ',
+          '',
+        );
+      }
+
+      if (message.isEmpty) {
+        message = 'Unable to sign in. Please try again later.';
+      }
+
+      setState(() {
+        _error = message;
+      });
     } finally {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -64,6 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       'assets/images/cixio-logo-white.png',
                       width: 200,
                       fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) {
+                        return const Icon(
+                          Icons.flutter_dash,
+                          size: 80,
+                          color: Colors.white,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -116,7 +154,19 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Email',
                               prefixIcon: Icon(Icons.email_outlined),
                             ),
-                            validator: (v) => v != null && v.contains('@') ? null : 'Enter a valid email',
+                            validator: (v) {
+                              final email = v?.trim() ?? '';
+
+                              if (email.isEmpty) {
+                                return 'Email is required';
+                              }
+
+                              if (!email.contains('@')) {
+                                return 'Enter a valid email';
+                              }
+
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -126,7 +176,17 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Password',
                               prefixIcon: Icon(Icons.lock_outlined),
                             ),
-                            validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 characters',
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Password is required';
+                              }
+
+                              if (v.length < 6) {
+                                return 'Minimum 6 characters';
+                              }
+
+                              return null;
+                            },
                           ),
                           if (_error != null) ...[
                             const SizedBox(height: 12),
@@ -136,7 +196,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: Colors.red.shade50,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Text(_error!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                              child: Text(_error!,
+                                  style: TextStyle(
+                                      color: Colors.red.shade700,
+                                      fontSize: 13)),
                             ),
                           ],
                           const SizedBox(height: 24),
@@ -144,8 +207,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _isLoading ? null : _login,
                             child: _isLoading
                                 ? const SizedBox(
-                                    height: 20, width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
                                   )
                                 : const Text('Sign in'),
                           ),

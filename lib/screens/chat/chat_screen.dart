@@ -25,6 +25,8 @@ class _ChatScreenState extends State<ChatScreen> {
   String _streamingContent = '';
   bool _isStreaming = false;
   bool _useRag = false;
+  String? _loadError;
+  bool _isLoadingMessages = false;
 
   @override
   void initState() {
@@ -33,14 +35,52 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingMessages = true;
+      _loadError = null;
+    });
+
     try {
-      final response = await ApiService().dio.get('/chat/sessions/${widget.sessionId}/messages');
-      final list = (response.data as List)
-          .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
+      final response = await ApiService().dio.get(
+            '/chat/sessions/${widget.sessionId}/messages',
+          );
+
+      final data = response.data;
+
+      if (data is! List) {
+        throw Exception('Invalid response format.');
+      }
+
+      final list = data
+          .map(
+            (m) => ChatMessage.fromJson(
+              m as Map<String, dynamic>,
+            ),
+          )
           .toList();
-      setState(() { _messages.addAll(list); });
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages.clear();
+        _messages.addAll(list);
+      });
     } catch (e) {
       debugPrint('Error loading messages: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _loadError = 'Unable to load messages. Please try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+        });
+      }
     }
   }
 
@@ -65,7 +105,10 @@ class _ChatScreenState extends State<ChatScreen> {
     // Real SSE streaming via http package
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
-    final uri = Uri.parse('${AppConfig.apiUrl}/chat/sessions/${widget.sessionId}/messages');
+    final uri = Uri.parse(
+        '${AppConfig.apiUrl}/chat/sessions/${widget.sessionId}/messages');
+
+    final client = http.Client();
 
     try {
       final request = http.Request('POST', uri);
@@ -74,8 +117,12 @@ class _ChatScreenState extends State<ChatScreen> {
       request.headers['Accept'] = 'text/event-stream';
       request.body = jsonEncode({'content': content, 'use_rag': _useRag});
 
-      final response = await http.Client().send(request);
-      final stream = response.stream.transform(utf8.decoder).transform(const LineSplitter());
+      final response = await client.send(request).timeout(
+            const Duration(seconds: 60),
+          );
+      final stream = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
 
       await for (final line in stream) {
         if (!mounted) break;
@@ -84,12 +131,15 @@ class _ChatScreenState extends State<ChatScreen> {
           if (data == '[DONE]') break;
           try {
             final json = jsonDecode(data) as Map<String, dynamic>;
-            final delta = (json['choices'] as List?)
-                    ?.first['delta']?['content'] as String? ??
+            final delta = (json['choices'] as List?)?.first['delta']?['content']
+                    as String? ??
                 json['delta'] as String? ??
                 '';
             if (delta.isNotEmpty) {
-              setState(() { _streamingContent += delta; });
+              if (!mounted) break;
+              setState(() {
+                _streamingContent += delta;
+              });
               _scrollToBottom();
             }
           } catch (_) {
@@ -97,12 +147,28 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
       }
+    } on TimeoutException {
+      if (!mounted) return;
+
+      setState(() {
+        _streamingContent = 'Request timed out. Please try again.';
+      });
     } catch (e) {
       debugPrint('SSE error: $e');
-      setState(() { _streamingContent = 'Error: could not reach the AI service.'; });
+
+      if (!mounted) return;
+
+      setState(() {
+        _streamingContent = 'Unable to reach the AI service.';
+      });
+    } finally {
+      client.close();
     }
 
     final fullContent = _streamingContent;
+
+    if (!mounted) return;
+
     setState(() {
       _isStreaming = false;
       _streamingContent = '';
@@ -145,14 +211,19 @@ class _ChatScreenState extends State<ChatScreen> {
         title: const Text('Chat'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop() ? context.pop() : context.go('/chat'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/chat'),
         ),
         actions: [
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('RAG', style: TextStyle(fontSize: 12)),
-              Switch(value: _useRag, onChanged: (v) => setState(() { _useRag = v; })),
+              Switch(
+                  value: _useRag,
+                  onChanged: (v) => setState(() {
+                        _useRag = v;
+                      })),
             ],
           ),
         ],
@@ -161,25 +232,67 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           // Messages list
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length + (_isStreaming ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (_isStreaming && index == _messages.length) {
-                  return _MessageBubble(
-                    message: ChatMessage(
-                      id: 'streaming',
-                      sessionId: widget.sessionId,
-                      role: 'assistant',
-                      content: _streamingContent.isEmpty ? '▋' : _streamingContent,
-                      createdAt: DateTime.now().toIso8601String(),
-                    ),
-                  );
-                }
-                return _MessageBubble(message: _messages[index]);
-              },
-            ),
+            child: _isLoadingMessages
+                ? const Center(
+                    child: CircularProgressIndicator(),
+                  )
+                : _loadError != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: Colors.red,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _loadError!,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadMessages,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : _messages.isEmpty && !_isStreaming
+                        ? const Center(
+                            child: Text(
+                              'Start a conversation.',
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount:
+                                _messages.length + (_isStreaming ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (_isStreaming && index == _messages.length) {
+                                return _MessageBubble(
+                                  message: ChatMessage(
+                                    id: 'streaming',
+                                    sessionId: widget.sessionId,
+                                    role: 'assistant',
+                                    content: _streamingContent.isEmpty
+                                        ? '▋'
+                                        : _streamingContent,
+                                    createdAt: DateTime.now().toIso8601String(),
+                                  ),
+                                );
+                              }
+
+                              return _MessageBubble(
+                                message: _messages[index],
+                              );
+                            },
+                          ),
           ),
 
           // Input area
@@ -197,7 +310,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Ask anything...',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                     onSubmitted: (_) => _sendMessage(),
                   ),
@@ -234,7 +348,8 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
@@ -253,8 +368,20 @@ class _MessageBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: isUser
-                  ? Text(message.content, style: const TextStyle(color: Colors.white))
-                  : MarkdownBody(data: message.content),
+                  ? Text(message.content,
+                      style: const TextStyle(color: Colors.white))
+                  : Builder(
+                      builder: (_) {
+                        try {
+                          return MarkdownBody(
+                            data: message.content,
+                            selectable: true,
+                          );
+                        } catch (_) {
+                          return Text(message.content);
+                        }
+                      },
+                    ),
             ),
           ),
         ],

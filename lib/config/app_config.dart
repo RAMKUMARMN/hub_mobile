@@ -1,16 +1,8 @@
 class AppConfig {
-  /// Backend API base URL.
-  /// iOS Simulator shares the Mac's network stack → localhost works.
-  /// Android Emulator: use http://10.0.2.2:8090
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8090',
-  );
+  /// Hardcoded to your actual Windows laptop IP on the Tailscale network
+  static const String apiBaseUrl = 'http://100.111.106.78:8000';
 
-  static const String notifyBaseUrl = String.fromEnvironment(
-    'NOTIFY_BASE_URL',
-    defaultValue: 'http://localhost:8001',
-  );
+  static const String notifyBaseUrl = 'http://100.111.106.78:8001';
 
   static const String apiVersion = '/api/v1';
   static String get apiUrl => '$apiBaseUrl$apiVersion';
