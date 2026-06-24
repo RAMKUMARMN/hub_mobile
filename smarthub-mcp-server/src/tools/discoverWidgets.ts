@@ -2,13 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export function discoverWidgets() {
+	const HUB_MOBILE_ROOT = path.resolve(
+    process.cwd(),
+    ".."
+);
 
-    const widgetsDir =
-        path.join(
-            process.cwd(),
-            'lib',
-            'widgets'
-        );
+const widgetsDir = path.join(
+    HUB_MOBILE_ROOT,
+    "lib",
+    "widgets"
+);
 
     if (!fs.existsSync(widgetsDir)) {
 

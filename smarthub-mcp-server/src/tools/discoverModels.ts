@@ -5,12 +5,16 @@ import * as process from 'process';
 
 export async function discoverModelsHandler() {
 
-    const modelsDir =
-        path.join(
-            process.cwd(),
-            'lib',
-            'models'
-        );
+    const HUB_MOBILE_ROOT = path.resolve(
+    process.cwd(),
+    ".."
+);
+
+const modelsDir = path.join(
+    HUB_MOBILE_ROOT,
+    "lib",
+    "models"
+);
 
     if (!fs.existsSync(modelsDir)) {
 

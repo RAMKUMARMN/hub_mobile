@@ -3,12 +3,16 @@ import * as path from 'path';
 
 export function discoverServices() {
 
-    const servicesDir =
-        path.join(
-            process.cwd(),
-            'lib',
-            'services'
-        );
+    const HUB_MOBILE_ROOT = path.resolve(
+    process.cwd(),
+    ".."
+);
+
+const servicesDir = path.join(
+    HUB_MOBILE_ROOT,
+    "lib",
+    "services"
+);
 
     if (!fs.existsSync(servicesDir)) {
 
