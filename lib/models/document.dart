@@ -26,4 +26,14 @@ class Document {
         chunkCount: (json['chunk_count'] as num?)?.toInt() ?? 0,
         createdAt: json['created_at'] as String? ?? '',
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'filename': filename,
+        'file_type': fileType,
+        'file_size': fileSize,
+        'processed': processed,
+        'chunk_count': chunkCount,
+        'created_at': createdAt,
+      };
 }

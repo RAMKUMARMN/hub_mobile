@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'screens/auth/login_screen.dart';
 import 'services/auth_state.dart';
@@ -14,6 +15,7 @@ import 'widgets/app_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
   // Pre-load auth state so GoRouter can redirect synchronously (no blank flash).
   await authNotifier.initialize();
   runApp(const CixioHubApp());

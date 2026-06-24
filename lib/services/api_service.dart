@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'token_storage.dart';
 import '../config/app_config.dart';
 import 'auth_state.dart';
+import 'cache_manager.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -23,8 +24,7 @@ class ApiService {
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('access_token');
+        final token = await TokenStorage.getAccessToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -34,8 +34,7 @@ class ApiService {
         if (error.response?.statusCode == 401 && !_isRefreshing) {
           _isRefreshing = true;
           try {
-            final prefs = await SharedPreferences.getInstance();
-            final refreshToken = prefs.getString('refresh_token');
+            final refreshToken = await TokenStorage.getRefreshToken();
             if (refreshToken != null) {
               final refreshDio = Dio(BaseOptions(baseUrl: AppConfig.apiUrl));
               final res = await refreshDio.post(
@@ -44,8 +43,7 @@ class ApiService {
               );
               final newAccess = res.data['access_token'] as String;
               final newRefresh = res.data['refresh_token'] as String;
-              await prefs.setString('access_token', newAccess);
-              await prefs.setString('refresh_token', newRefresh);
+              await TokenStorage.saveTokens(newAccess, newRefresh);
               // Retry original request with new token
               final opts = error.requestOptions;
               opts.headers['Authorization'] = 'Bearer $newAccess';
@@ -55,9 +53,8 @@ class ApiService {
             }
           } catch (_) {
             // Refresh failed — clear tokens and send user back to login
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('access_token');
-            await prefs.remove('refresh_token');
+            await TokenStorage.clearTokens();
+            await CacheManager.clearAll();
             authNotifier.onLogout();
           }
           _isRefreshing = false;
