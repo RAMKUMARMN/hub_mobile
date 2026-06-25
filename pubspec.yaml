@@ -35,6 +35,8 @@ dependencies:
 
   # App info (for settings)
   package_info_plus: ^8.0.0
+
+# Secure storage
   flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
