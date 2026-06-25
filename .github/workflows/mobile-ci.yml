@@ -51,10 +51,11 @@ jobs:
       - name: Verify Flutter installation
         run: flutter --version
 
-      - name: Create .env file for CI
+      - name: Create app.env file for CI
         run: |
-          echo "API_URL=http://localhost:8000" > .env
-          echo "ENVIRONMENT=test" >> .env
+          mkdir -p assets
+          echo "API_BASE_URL=http://localhost:8000/api/v1" > assets/app.env
+          echo "ENVIRONMENT=test" >> assets/app.env
 
       - name: Decode google-services.json
         run: |
