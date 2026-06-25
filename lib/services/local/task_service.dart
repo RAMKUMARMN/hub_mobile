@@ -202,6 +202,7 @@ class TaskService {
       );
       
       if (response['success'] == true) {
+        if (!context.mounted) return false;
         final appState = Provider.of<AppState>(context, listen: false);
         
         // Find which workspace the task belongs to
@@ -438,6 +439,7 @@ class TaskService {
     );
     
     if (date == null) return null;
+    if (!context.mounted) return null;
     
     final TimeOfDay? time = await showTimePicker(
       context: context,

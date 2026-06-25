@@ -176,15 +176,15 @@ if (task.hasReminder && !task.isCompleted) ...[
   Row(
     crossAxisAlignment: CrossAxisAlignment.start,  // Changed to start
     children: [
-      Padding(
-        padding: const EdgeInsets.only(top: 2),
+      const Padding(
+        padding: EdgeInsets.only(top: 2),
         child: Icon(Icons.notifications_outlined, size: 12, color: AppColors.aiCyan),
       ),
       const SizedBox(width: 4),
       Expanded(  // ADDED Expanded to prevent overflow
         child: Text(
           'Reminder: ${_formatDateTime(task.reminderAt!)}',
-          style: TextStyle(color: AppColors.aiCyan, fontSize: 11),
+          style: const TextStyle(color: AppColors.aiCyan, fontSize: 11),
           maxLines: 2,  // Allow wrapping
           overflow: TextOverflow.ellipsis,
         ),

@@ -269,7 +269,7 @@ class AIProvider extends ChangeNotifier {
 
   // ✅ Store the chat ID before adding messages
   final String chatIdToUse = _currentChat!.id;
-  print('📝 Using chat ID: $chatIdToUse');
+  debugPrint('📝 Using chat ID: $chatIdToUse');
 
   _addMessageToCurrentChat(ChatMessage(
     id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -288,7 +288,7 @@ class AIProvider extends ChangeNotifier {
     await _aiService.sendMessageStream(
       message: message,
       onChunk: (chunk) {
-        print('📥 Received chunk: ${chunk.length} characters');
+        debugPrint('📥 Received chunk: ${chunk.length} characters');
 
         if (!aiMessageCreated) {
           // ✅ First chunk arrived — create the bubble now, turn off typing
@@ -322,7 +322,7 @@ class AIProvider extends ChangeNotifier {
     _setTyping(false);
     _saveChats();
   } catch (e) {
-    print('❌ Stream error: $e');
+    debugPrint('❌ Stream error: $e');
     _setTyping(false);
     _addErrorMessage('Sorry, I encountered an error. Please try again.');
   }
@@ -330,19 +330,19 @@ class AIProvider extends ChangeNotifier {
 
   // ✅ SINGLE METHOD to update last message (merged both versions)
   void _updateLastMessageWithId(String chatId, String chunk) {
-    print('🔍 DEBUG: _updateLastMessageWithId called');
-    print('🔍 DEBUG: chatId = $chatId');
-    print('🔍 DEBUG: chunk = $chunk');
+    debugPrint('🔍 DEBUG: _updateLastMessageWithId called');
+    debugPrint('🔍 DEBUG: chatId = $chatId');
+    debugPrint('🔍 DEBUG: chunk = $chunk');
 
     final workspaceId = _currentWorkspace?.id ?? 'general';
     final chats = _workspaceChats[workspaceId] ?? [];
 
-    print('🔍 DEBUG: workspaceId = $workspaceId');
-    print('🔍 DEBUG: Available chats = ${chats.map((c) => c.id).toList()}');
-    print('🔍 DEBUG: Current chat = ${_currentChat?.id}');
+    debugPrint('🔍 DEBUG: workspaceId = $workspaceId');
+    debugPrint('🔍 DEBUG: Available chats = ${chats.map((c) => c.id).toList()}');
+    debugPrint('🔍 DEBUG: Current chat = ${_currentChat?.id}');
 
     final index = chats.indexWhere((c) => c.id == chatId);
-    print('🔍 DEBUG: Index found = $index');
+    debugPrint('🔍 DEBUG: Index found = $index');
 
     if (index != -1) {
       final chat = chats[index];
@@ -377,7 +377,7 @@ class AIProvider extends ChangeNotifier {
         }
       }
     } else {
-      print('⚠️ Chat not found with ID: $chatId');
+      debugPrint('⚠️ Chat not found with ID: $chatId');
     }
   }
 

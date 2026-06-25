@@ -331,6 +331,7 @@ Future<void> _showCreateWorkspaceDialog() async {
     );
     
     if (date == null) return null;
+    if (!mounted) return null;
     
     final TimeOfDay? time = await showTimePicker(
       context: context,
@@ -579,7 +580,7 @@ Future<void> _showCreateWorkspaceDialog() async {
                       );
                     }
                     
-                    if (mounted) {
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Task added: ${_titleController.text}')),
                       );
@@ -723,8 +724,8 @@ Future<void> _showCreateWorkspaceDialog() async {
                 const SizedBox(height: 24),
 
                 // Workspace Items List
-                Expanded(
-                  child: const WorkspaceContent(),
+                const Expanded(
+                  child: WorkspaceContent(),
                 ),
               ],
             ),

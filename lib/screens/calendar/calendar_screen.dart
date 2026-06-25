@@ -205,7 +205,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(
                     labelText: 'Event Type',
                     border: OutlineInputBorder(),
@@ -266,14 +266,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final cardColor = Theme.of(context).cardColor;
     
-    return WillPopScope(
-      onWillPop: () async {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-          return false;
-        }
-        return true;
-      },
+    return PopScope(canPop: !Navigator.canPop(context),onPopInvokedWithResult: (didPop, result) {
+      if (didPop) return; // If already popped by system, do nothing
+      Navigator.pop(context); // Pop internally (back one screen)
+    },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(

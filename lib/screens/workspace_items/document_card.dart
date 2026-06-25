@@ -273,11 +273,11 @@ class DocumentCard extends StatelessWidget {
                   future: isDocumentCached(document.id),
                   builder: (context, snapshot) {
                     if (snapshot.hasData && snapshot.data == true) {
-                      return Row(
+                      return const Row(
                         children: [
-                          const Icon(Icons.check_circle, size: 12, color: Colors.green),
-                          const SizedBox(width: 4),
-                          const Text(
+                          Icon(Icons.check_circle, size: 12, color: Colors.green),
+                          SizedBox(width: 4),
+                          Text(
                             'Cached',
                             style: TextStyle(color: Colors.green, fontSize: 10),
                           ),

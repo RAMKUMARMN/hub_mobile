@@ -17,14 +17,29 @@ class AuthService {
     );
     
     if (response['success'] == true) {
-      final data = response['data'];
-      return {
-        'success': true,
-        'token': data['access_token'],
-        'user_id': data['user']['id'],
-        'name': data['user']['name'],
-        'email': data['user']['email'],
-      };
+      final tokenData = response['data'];
+      final String token = tokenData['access_token'];
+      
+      // Fetch user profile info using the token we just received
+      final profileResponse = await _client.request(
+        method: 'GET',
+        endpoint: '/auth/me',
+        requiresAuth: true,
+        customHeaders: {'Authorization': 'Bearer $token'},
+      );
+      
+      if (profileResponse['success'] == true) {
+        final userData = profileResponse['data'];
+        return {
+          'success': true,
+          'token': token,
+          'user_id': userData['id'],
+          'name': userData['full_name'],
+          'email': userData['email'],
+        };
+      } else {
+        return profileResponse;
+      }
     }
     return response;
   }
@@ -39,18 +54,12 @@ class AuthService {
       method: 'POST',
       endpoint: '/auth/register',
       requiresAuth: false,
-      body: {'name': name, 'email': email, 'password': password},
+      body: {'full_name': name, 'email': email, 'password': password},
     );
     
     if (response['success'] == true) {
-      final data = response['data'];
-      return {
-        'success': true,
-        'token': data['access_token'],
-        'user_id': data['user']['id'],
-        'name': data['user']['name'],
-        'email': data['user']['email'],
-      };
+      // Auto-login after successful registration to retrieve token and details
+      return await login(email: email, password: password);
     }
     return response;
   }

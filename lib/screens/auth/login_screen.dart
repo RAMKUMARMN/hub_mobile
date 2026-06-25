@@ -5,9 +5,10 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
 
-import '../../providers/auth_provider.dart' as AppAuth;
+import '../../providers/auth_provider.dart' as app_auth;
 import '../../themes/app_colors.dart';
 import '../home/home_screen.dart';
+import '../../config/app_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -75,6 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
     
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: AppConfig.googleClientId,
         scopes: ['email', 'profile'],
       );
       logger.i('🟢 GoogleSignIn instance created');
@@ -108,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
       logger.i('🟢 Firebase sign-in successful: ${user?.email}');
       
       if (user != null && mounted) {
-        final authProvider = Provider.of<AppAuth.AuthProvider>(context, listen: false);
+        final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
         logger.i('🟢 Calling backend googleLogin...');
         
         final success = await authProvider.googleLogin(
@@ -258,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// LOGIN CARD
   Widget buildLoginCard(Color? textColor, Color? secondaryText, Color? cardColor) {
-    final authProvider = Provider.of<AppAuth.AuthProvider>(context);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context);
 
     return Container(
       key: const ValueKey("login"),
@@ -408,7 +410,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// REGISTER CARD
   Widget buildRegisterCard(Color? textColor, Color? secondaryText, Color? cardColor) {
-    final authProvider = Provider.of<AppAuth.AuthProvider>(context);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context);
 
     return Container(
       key: const ValueKey("register"),

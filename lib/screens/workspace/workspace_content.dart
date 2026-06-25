@@ -154,6 +154,7 @@ class WorkspaceContent extends StatelessWidget {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (date == null) return null;
+    if (!context.mounted) return null;
     
     final TimeOfDay? time = await showTimePicker(
       context: context,

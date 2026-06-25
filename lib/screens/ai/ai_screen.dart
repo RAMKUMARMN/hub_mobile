@@ -159,7 +159,7 @@ class _AIScreenState extends State<AIScreen> {
 
     return PopScope(
       canPop: true,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (_isSidebarVisible) {
           _closeSidebar();
         }
