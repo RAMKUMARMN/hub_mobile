@@ -3,9 +3,14 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../models/document.dart';
 import '../../services/api_service.dart';
+import '../../services/document_cache.dart';
+import '../../utils/error_formatter.dart';
+import '../../widgets/offline_banner.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
@@ -18,13 +23,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   List<Document> _documents = [];
   bool _isLoading = true;
   bool _isUploading = false;
+  bool _backendLoaded = false;
+  bool _isOffline = false;
   String? _error;
   Timer? _pollTimer;
+  GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
   @override
   void initState() {
     super.initState();
+    _loadCachedDocuments();
     _loadDocuments();
+  }
+
+  Future<void> _loadCachedDocuments() async {
+    final cached = await DocumentCache.loadDocuments();
+    if (!mounted || _backendLoaded || cached.isEmpty) return;
+    setState(() {
+      _documents = cached;
+      _isLoading = false;
+      _listKey = GlobalKey<AnimatedListState>();
+    });
   }
 
   @override
@@ -36,6 +55,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   Future<void> _loadDocuments() async {
     try {
       final response = await ApiService().dio.get('/documents/');
+      if (!mounted) return;
+      _backendLoaded = true;
       final docs = (response.data as List)
           .map((d) => Document.fromJson(d as Map<String, dynamic>))
           .toList();
@@ -43,16 +64,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _documents = docs;
         _isLoading = false;
         _error = null;
+        _listKey = GlobalKey<AnimatedListState>();
       });
+      await DocumentCache.saveDocuments(docs);
       // Poll while any document is still processing
       if (docs.any((d) => !d.processed)) {
         _pollTimer?.cancel();
         _pollTimer = Timer(const Duration(seconds: 3), _loadDocuments);
       }
     } on DioException catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Failed to load documents: ${e.message}';
+        if (_documents.isEmpty) {
+          _error = ErrorFormatter.format(e);
+        } else {
+          _isOffline = true;
+        }
       });
     }
   }
@@ -88,7 +116,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: ${e.message ?? "Unknown error"}')),
+          SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Upload failed.'))),
         );
       }
     } catch (e) {
@@ -132,11 +160,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (confirmed != true) return;
     try {
       await ApiService().dio.delete('/documents/$id');
-      setState(() { _documents.removeWhere((d) => d.id == id); });
+      HapticFeedback.lightImpact();
+      
+      final idx = _documents.indexWhere((d) => d.id == id);
+      if (idx != -1) {
+        final doc = _documents[idx];
+        _documents.removeAt(idx);
+        _listKey.currentState?.removeItem(
+          idx,
+          (context, animation) => _buildItem(doc, animation),
+          duration: const Duration(milliseconds: 200),
+        );
+      }
+      await DocumentCache.saveDocuments(_documents);
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: ${e.message ?? "Unknown error"}')),
+          SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Delete failed.'))),
         );
       }
     }
@@ -145,8 +185,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+      body: Column(
+        children: [
+          OfflineBanner(isOffline: _isOffline),
+          Expanded(
+            child: _isLoading
+                ? const SkeletonLoader()
           : _error != null
               ? Center(
                   child: Column(
@@ -162,39 +206,18 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   ? const Center(child: Text('No documents yet. Upload your first document!'))
                   : RefreshIndicator(
                       onRefresh: _loadDocuments,
-                      child: ListView.separated(
+                      child: AnimatedList(
+                        key: _listKey,
                         padding: const EdgeInsets.all(16),
-                        itemCount: _documents.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final doc = _documents[index];
-                          return Card(
-                            child: ListTile(
-                              leading: _docIcon(doc.fileType),
-                              title: Text(doc.filename),
-                              subtitle: Text(
-                                doc.processed
-                                    ? '${doc.chunkCount} chunks • ${_formatSize(doc.fileSize)}'
-                                    : 'Processing...',
-                                style: TextStyle(
-                                  color: doc.processed ? Colors.green.shade700 : Colors.orange,
-                                ),
-                              ),
-                              trailing: doc.processed
-                                  ? IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                      onPressed: () => _deleteDocument(doc.id),
-                                    )
-                                  : const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                            ),
-                          );
+                        initialItemCount: _documents.length,
+                        itemBuilder: (context, index, animation) {
+                          return _buildItem(_documents[index], animation);
                         },
                       ),
                     ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab_documents',
         onPressed: _isUploading ? null : _uploadDocument,
@@ -202,6 +225,40 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.upload_file),
         label: Text(_isUploading ? 'Uploading...' : 'Upload'),
+      ),
+    );
+  }
+
+  Widget _buildItem(Document doc, Animation<double> animation) {
+    return SizeTransition(
+      sizeFactor: animation,
+      child: FadeTransition(
+        opacity: animation,
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: _docIcon(doc.fileType),
+            title: Text(doc.filename),
+            subtitle: Text(
+              doc.processed
+                  ? '${doc.chunkCount} chunks • ${_formatSize(doc.fileSize)}'
+                  : 'Processing...',
+              style: TextStyle(
+                color: doc.processed ? Colors.green.shade700 : Colors.orange,
+              ),
+            ),
+            trailing: doc.processed
+                ? IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _deleteDocument(doc.id),
+                  )
+                : const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+          ),
+        ),
       ),
     );
   }

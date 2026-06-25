@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'token_storage.dart';
 import '../models/user.dart';
 import 'api_service.dart';
 import 'auth_state.dart';
+import 'cache_manager.dart';
 
 class AuthService {
   final _api = ApiService();
@@ -17,9 +18,7 @@ class AuthService {
     final refreshToken = response.data['refresh_token'] as String;
 
     // Save tokens
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('access_token', accessToken);
-    await prefs.setString('refresh_token', refreshToken);
+    await TokenStorage.saveTokens(accessToken, refreshToken);
     authNotifier.onLogin(); // Notify router — triggers synchronous redirect
 
     // Fetch current user
@@ -57,15 +56,13 @@ class AuthService {
     } catch (_) {
       // Ignore errors on logout
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('access_token');
-    await prefs.remove('refresh_token');
+    await TokenStorage.clearTokens();
+    await CacheManager.clearAll();
     authNotifier.onLogout(); // Notify router to redirect to /login
   }
 
   Future<User?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = await TokenStorage.getAccessToken();
     if (token == null) return null;
     try {
       final response = await _api.dio.get('/auth/me');

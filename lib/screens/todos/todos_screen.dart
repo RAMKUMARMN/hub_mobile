@@ -1,8 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../models/todo.dart';
 import '../../services/api_service.dart';
+import '../../services/todo_cache.dart';
+import '../../utils/error_formatter.dart';
+import '../../widgets/offline_banner.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class TodosScreen extends StatefulWidget {
   const TodosScreen({super.key});
@@ -12,30 +17,60 @@ class TodosScreen extends StatefulWidget {
 }
 
 class _TodosScreenState extends State<TodosScreen> {
-  List<Todo> _todos = [];
+  List<Todo> _pending = [];
+  List<Todo> _done = [];
   bool _isLoading = true;
+  bool _backendLoaded = false;
+  bool _isOffline = false;
   String? _error;
+  GlobalKey<AnimatedListState> _pendingKey = GlobalKey<AnimatedListState>();
+  GlobalKey<AnimatedListState> _doneKey = GlobalKey<AnimatedListState>();
 
   @override
   void initState() {
     super.initState();
+    _loadCachedTodos();
     _loadTodos();
+  }
+
+  Future<void> _loadCachedTodos() async {
+    final cached = await TodoCache.loadTodos();
+    if (!mounted || _backendLoaded || cached.isEmpty) return;
+    setState(() {
+      _pending = cached.where((t) => !t.completed).toList();
+      _done = cached.where((t) => t.completed).toList();
+      _isLoading = false;
+      _pendingKey = GlobalKey<AnimatedListState>();
+      _doneKey = GlobalKey<AnimatedListState>();
+    });
   }
 
   Future<void> _loadTodos() async {
     try {
       final response = await ApiService().dio.get('/todos/');
+      if (!mounted) return;
+      _backendLoaded = true;
+      final list = (response.data as List)
+          .map((t) => Todo.fromJson(t as Map<String, dynamic>))
+          .toList();
       setState(() {
-        _todos = (response.data as List)
-            .map((t) => Todo.fromJson(t as Map<String, dynamic>))
-            .toList();
+        _pending = list.where((t) => !t.completed).toList();
+        _done = list.where((t) => t.completed).toList();
         _isLoading = false;
         _error = null;
+        _pendingKey = GlobalKey<AnimatedListState>();
+        _doneKey = GlobalKey<AnimatedListState>();
       });
+      await TodoCache.saveTodos(list);
     } on DioException catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Failed to load todos: ${e.message}';
+        if (_pending.isEmpty && _done.isEmpty) {
+          _error = ErrorFormatter.format(e);
+        } else {
+          _isOffline = true;
+        }
       });
     }
   }
@@ -46,14 +81,33 @@ class _TodosScreenState extends State<TodosScreen> {
         '/todos/${todo.id}/complete',
         data: {'completed': !todo.completed},
       );
+      HapticFeedback.lightImpact();
+      
+      final updated = todo.copyWith(completed: !todo.completed);
       setState(() {
-        final idx = _todos.indexWhere((t) => t.id == todo.id);
-        if (idx != -1) _todos[idx] = todo.copyWith(completed: !todo.completed);
+        if (todo.completed) {
+          final idx = _done.indexWhere((t) => t.id == todo.id);
+          if (idx != -1) {
+            _done.removeAt(idx);
+            _doneKey.currentState?.removeItem(idx, (context, anim) => _buildTodoTile(todo, anim), duration: const Duration(milliseconds: 200));
+            _pending.insert(0, updated);
+            _pendingKey.currentState?.insertItem(0, duration: const Duration(milliseconds: 200));
+          }
+        } else {
+          final idx = _pending.indexWhere((t) => t.id == todo.id);
+          if (idx != -1) {
+            _pending.removeAt(idx);
+            _pendingKey.currentState?.removeItem(idx, (context, anim) => _buildTodoTile(todo, anim), duration: const Duration(milliseconds: 200));
+            _done.insert(0, updated);
+            _doneKey.currentState?.insertItem(0, duration: const Duration(milliseconds: 200));
+          }
+        }
       });
+      await TodoCache.saveTodos([..._pending, ..._done]);
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: ${e.message ?? "Unknown error"}')),
+          SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Failed to update.'))),
         );
       }
     }
@@ -62,11 +116,28 @@ class _TodosScreenState extends State<TodosScreen> {
   Future<void> _deleteTodo(String id) async {
     try {
       await ApiService().dio.delete('/todos/$id');
-      setState(() { _todos.removeWhere((t) => t.id == id); });
+      HapticFeedback.lightImpact();
+      
+      setState(() {
+        final pendingIdx = _pending.indexWhere((t) => t.id == id);
+        if (pendingIdx != -1) {
+          final t = _pending[pendingIdx];
+          _pending.removeAt(pendingIdx);
+          _pendingKey.currentState?.removeItem(pendingIdx, (context, anim) => _buildTodoTile(t, anim), duration: const Duration(milliseconds: 200));
+        } else {
+          final doneIdx = _done.indexWhere((t) => t.id == id);
+          if (doneIdx != -1) {
+            final t = _done[doneIdx];
+            _done.removeAt(doneIdx);
+            _doneKey.currentState?.removeItem(doneIdx, (context, anim) => _buildTodoTile(t, anim), duration: const Duration(milliseconds: 200));
+          }
+        }
+      });
+      await TodoCache.saveTodos([..._pending, ..._done]);
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: ${e.message ?? "Unknown error"}')),
+          SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Delete failed.'))),
         );
       }
     }
@@ -113,13 +184,16 @@ class _TodosScreenState extends State<TodosScreen> {
         'title': titleCtrl.text.trim(),
         if (descCtrl.text.trim().isNotEmpty) 'description': descCtrl.text.trim(),
       });
+      final newTodo = Todo.fromJson(response.data as Map<String, dynamic>);
       setState(() {
-        _todos.insert(0, Todo.fromJson(response.data as Map<String, dynamic>));
+        _pending.insert(0, newTodo);
+        _pendingKey.currentState?.insertItem(0, duration: const Duration(milliseconds: 200));
       });
+      await TodoCache.saveTodos([..._pending, ..._done]);
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Create failed: ${e.message ?? "Unknown error"}')),
+          SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Create failed.'))),
         );
       }
     }
@@ -127,12 +201,13 @@ class _TodosScreenState extends State<TodosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pending = _todos.where((t) => !t.completed).toList();
-    final done = _todos.where((t) => t.completed).toList();
-
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+      body: Column(
+        children: [
+          OfflineBanner(isOffline: _isOffline),
+          Expanded(
+            child: _isLoading
+                ? const SkeletonLoader()
           : _error != null
               ? Center(
                   child: Column(
@@ -149,39 +224,64 @@ class _TodosScreenState extends State<TodosScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      if (pending.isEmpty && done.isEmpty)
+                      if (_pending.isEmpty && _done.isEmpty)
                         const Padding(
                           padding: EdgeInsets.only(top: 60),
                           child: Center(child: Text('No todos yet. Add your first one!')),
                         ),
-                      if (pending.isNotEmpty) ...[
-                        Text('Pending (${pending.length})',
+                      if (_pending.isNotEmpty) ...[
+                        Text('Pending (${_pending.length})',
                             style: Theme.of(context).textTheme.titleSmall),
                         const SizedBox(height: 8),
-                        ...pending.map((t) => _TodoTile(
-                              todo: t,
-                              onToggle: () => _toggleComplete(t),
-                              onDelete: () => _deleteTodo(t.id),
-                            )),
+                        AnimatedList(
+                          key: _pendingKey,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          initialItemCount: _pending.length,
+                          itemBuilder: (context, index, animation) {
+                            return _buildTodoTile(_pending[index], animation);
+                          },
+                        ),
                         const SizedBox(height: 16),
                       ],
-                      if (done.isNotEmpty) ...[
-                        Text('Completed (${done.length})',
+                      if (_done.isNotEmpty) ...[
+                        Text('Completed (${_done.length})',
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.grey)),
                         const SizedBox(height: 8),
-                        ...done.map((t) => _TodoTile(
-                              todo: t,
-                              onToggle: () => _toggleComplete(t),
-                              onDelete: () => _deleteTodo(t.id),
-                            )),
+                        AnimatedList(
+                          key: _doneKey,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          initialItemCount: _done.length,
+                          itemBuilder: (context, index, animation) {
+                            return _buildTodoTile(_done[index], animation);
+                          },
+                        ),
                       ],
                     ],
                   ),
                 ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_todos',
         onPressed: _showAddDialog,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildTodoTile(Todo todo, Animation<double> animation) {
+    return SizeTransition(
+      sizeFactor: animation,
+      child: FadeTransition(
+        opacity: animation,
+        child: _TodoTile(
+          todo: todo,
+          onToggle: () => _toggleComplete(todo),
+          onDelete: () => _deleteTodo(todo.id),
+        ),
       ),
     );
   }

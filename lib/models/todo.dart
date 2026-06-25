@@ -32,4 +32,13 @@ class Todo {
         dueDate: dueDate,
         createdAt: createdAt,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'completed': completed,
+        'due_date': dueDate,
+        'created_at': createdAt,
+      };
 }

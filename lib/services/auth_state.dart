@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'token_storage.dart';
 
 /// Global auth-state notifier.
 ///
@@ -16,8 +16,9 @@ class _AuthNotifier extends ChangeNotifier {
 
   /// Call once in [main] before [runApp] to pre-load the stored token.
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    _loggedIn = prefs.getString('access_token') != null;
+    await TokenStorage.migrateFromPrefs();
+    final token = await TokenStorage.getAccessToken();
+    _loggedIn = token != null;
     // No notifyListeners here — runApp hasn't been called yet.
   }
 

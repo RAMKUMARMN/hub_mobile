@@ -34,7 +34,7 @@ dependencies:
   flutter_markdown: ^0.7.4
 
   # App info (for settings)
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:

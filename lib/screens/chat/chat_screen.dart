@@ -3,12 +3,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 import '../../models/message.dart';
 import '../../services/api_service.dart';
+import '../../services/chat_cache.dart';
+import '../../services/token_storage.dart';
+import '../../widgets/offline_banner.dart';
 
 class ChatScreen extends StatefulWidget {
   final String sessionId;
@@ -25,11 +28,25 @@ class _ChatScreenState extends State<ChatScreen> {
   String _streamingContent = '';
   bool _isStreaming = false;
   bool _useRag = false;
+  bool _backendLoaded = false;
+  bool _isOffline = false;
+  http.Client? _sseClient;
 
   @override
   void initState() {
     super.initState();
+    _loadCachedMessages();
     _loadMessages();
+  }
+
+  Future<void> _loadCachedMessages() async {
+    final cachedMessages = await ChatCache.loadMessages(widget.sessionId);
+    if (!mounted || _backendLoaded || cachedMessages.isEmpty) return;
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(cachedMessages);
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -38,8 +55,19 @@ class _ChatScreenState extends State<ChatScreen> {
       final list = (response.data as List)
           .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
           .toList();
-      setState(() { _messages.addAll(list); });
+      if (!mounted) return;
+      _backendLoaded = true;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(list);
+      });
+      await ChatCache.saveMessages(widget.sessionId, list);
     } catch (e) {
+      if (!mounted) return;
+      if (_messages.isNotEmpty) {
+        setState(() => _isOffline = true);
+      }
       debugPrint('Error loading messages: $e');
     }
   }
@@ -48,6 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final content = _textController.text.trim();
     if (content.isEmpty || _isStreaming) return;
 
+    HapticFeedback.lightImpact();
     _textController.clear();
     setState(() {
       _messages.add(ChatMessage(
@@ -60,11 +89,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _streamingContent = '';
       _isStreaming = true;
     });
+    await ChatCache.saveMessages(widget.sessionId, _messages);
     _scrollToBottom();
 
     // Real SSE streaming via http package
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token') ?? '';
+    final token = await TokenStorage.getAccessToken() ?? '';
     final uri = Uri.parse('${AppConfig.apiUrl}/chat/sessions/${widget.sessionId}/messages');
 
     try {
@@ -74,7 +103,8 @@ class _ChatScreenState extends State<ChatScreen> {
       request.headers['Accept'] = 'text/event-stream';
       request.body = jsonEncode({'content': content, 'use_rag': _useRag});
 
-      final response = await http.Client().send(request);
+      _sseClient = http.Client();
+      final response = await _sseClient!.send(request);
       final stream = response.stream.transform(utf8.decoder).transform(const LineSplitter());
 
       await for (final line in stream) {
@@ -99,9 +129,15 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } catch (e) {
       debugPrint('SSE error: $e');
-      setState(() { _streamingContent = 'Error: could not reach the AI service.'; });
+      if (mounted) {
+        setState(() { _streamingContent = 'Error: could not reach the AI service.'; });
+      }
+    } finally {
+      _sseClient?.close();
+      _sseClient = null;
     }
 
+    if (!mounted) return;
     final fullContent = _streamingContent;
     setState(() {
       _isStreaming = false;
@@ -116,6 +152,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ));
       }
     });
+    await ChatCache.saveMessages(widget.sessionId, _messages);
     _scrollToBottom();
   }
 
@@ -133,6 +170,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _sseClient?.close();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -159,6 +197,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          OfflineBanner(isOffline: _isOffline),
           // Messages list
           Expanded(
             child: ListView.builder(

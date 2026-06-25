@@ -17,6 +17,13 @@ class ChatSession {
         createdAt: json['created_at'] as String,
         updatedAt: json['updated_at'] as String,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 }
 
 class ChatMessage {
@@ -41,6 +48,14 @@ class ChatMessage {
         content: json['content'] as String,
         createdAt: json['created_at'] as String,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'session_id': sessionId,
+        'role': role,
+        'content': content,
+        'created_at': createdAt,
+      };
 
   bool get isUser => role == 'user';
 }
