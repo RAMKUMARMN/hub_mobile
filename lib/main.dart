@@ -4,12 +4,15 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'screens/auth/login_screen.dart';
 import 'services/auth_state.dart';
+import 'services/notification_service.dart';
+import 'services/settings_service.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/chat/chat_sessions_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/documents/documents_screen.dart';
 import 'screens/todos/todos_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'screens/settings/settings_screen.dart';
 import 'theme/cixio_theme.dart';
 import 'widgets/app_shell.dart';
 
@@ -18,6 +21,10 @@ void main() async {
   await Hive.initFlutter();
   // Pre-load auth state so GoRouter can redirect synchronously (no blank flash).
   await authNotifier.initialize();
+  // Pre-load settings so the correct theme is applied on first frame.
+  await settingsNotifier.initialize();
+  // Initialize notifications respecting persisted preferences
+  await notificationService.initialize();
   runApp(const CixioHubApp());
 }
 
@@ -41,6 +48,8 @@ final _router = GoRouter(
       builder: (_, state) =>
           ChatScreen(sessionId: state.pathParameters['sessionId']!),
     ),
+    // Settings — outside shell so it gets full screen with back navigation
+    GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell),
@@ -78,11 +87,16 @@ class CixioHubApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'CixioHub',
-      debugShowCheckedModeBanner: false,
-      theme: CixioTheme.light,
-      routerConfig: _router,
+    return ListenableBuilder(
+      listenable: settingsNotifier,
+      builder: (context, _) => MaterialApp.router(
+        title: 'CixioHub',
+        debugShowCheckedModeBanner: false,
+        theme: CixioTheme.light,
+        darkTheme: CixioTheme.dark,
+        themeMode: settingsNotifier.themeMode,
+        routerConfig: _router,
+      ),
     );
   }
 }

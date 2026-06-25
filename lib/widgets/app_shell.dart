@@ -39,6 +39,14 @@ class AppShell extends StatelessWidget {
         ),
         centerTitle: false,
         elevation: 0,
+        actions: [
+          if (tabIndex == 3) // Profile tab
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: () => context.push('/settings'),
+            ),
+        ],
       ),
       body: navigationShell,
       bottomNavigationBar: NavigationBar(

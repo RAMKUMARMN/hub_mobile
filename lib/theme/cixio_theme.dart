@@ -21,7 +21,7 @@ class CixioTheme {
   static ThemeData get light => ThemeData(
         useMaterial3: true,
         fontFamily: 'Inter',
-        colorScheme: ColorScheme(
+        colorScheme: const ColorScheme(
           brightness: Brightness.light,
           primary:   CixioColors.blue,
           onPrimary: CixioColors.white,
@@ -183,5 +183,173 @@ class CixioTheme {
 
         // Divider
         dividerTheme: const DividerThemeData(color: CixioColors.light, space: 1),
+      );
+
+  static ThemeData get dark => ThemeData(
+        useMaterial3: true,
+        fontFamily: 'Inter',
+        brightness: Brightness.dark,
+        colorScheme: const ColorScheme(
+          brightness: Brightness.dark,
+          primary:   CixioColors.blue,
+          onPrimary: CixioColors.white,
+          primaryContainer: CixioColors.navy,
+          onPrimaryContainer: CixioColors.light,
+          secondary: CixioColors.muted,
+          onSecondary: CixioColors.white,
+          secondaryContainer: Color(0xFF1E293B),
+          onSecondaryContainer: CixioColors.light,
+          surface:   Color(0xFF111827),
+          onSurface: Color(0xFFE5E7EB),
+          error:     Color(0xFFEF4444),
+          onError:   CixioColors.white,
+          outline:   Color(0xFF374151),
+          surfaceContainerHighest: Color(0xFF1F2937),
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+
+        // AppBar — keep the dark navy brand
+        appBarTheme: const AppBarTheme(
+          backgroundColor: CixioColors.dark,
+          foregroundColor: CixioColors.white,
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            color: CixioColors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Inter',
+          ),
+          iconTheme: IconThemeData(color: CixioColors.white),
+          centerTitle: false,
+        ),
+
+        // Bottom nav bar
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF111827),
+          indicatorColor: CixioColors.navy,
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const IconThemeData(color: CixioColors.blue, size: 24);
+            }
+            return const IconThemeData(color: CixioColors.muted, size: 24);
+          }),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(
+                color: CixioColors.blue,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              );
+            }
+            return const TextStyle(color: CixioColors.muted, fontSize: 11);
+          }),
+          elevation: 4,
+          shadowColor: Colors.black26,
+        ),
+
+        // Filled buttons
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: CixioColors.blue,
+            foregroundColor: CixioColors.white,
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+        ),
+
+        // Outlined buttons
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: CixioColors.blue,
+            minimumSize: const Size.fromHeight(48),
+            side: const BorderSide(color: CixioColors.blue),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+        ),
+
+        // Text buttons
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: CixioColors.blue),
+        ),
+
+        // Input fields
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF1F2937),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF374151)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF374151)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: CixioColors.blue, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFFEF4444)),
+          ),
+          labelStyle: const TextStyle(color: CixioColors.muted),
+          hintStyle: const TextStyle(color: Color(0xFF6B7280)),
+        ),
+
+        // Cards
+        cardTheme: CardThemeData(
+          color: const Color(0xFF1F2937),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF374151)),
+          ),
+          margin: EdgeInsets.zero,
+        ),
+
+        // Checkbox
+        checkboxTheme: CheckboxThemeData(
+          fillColor: WidgetStateProperty.resolveWith((s) =>
+              s.contains(WidgetState.selected) ? CixioColors.blue : null),
+        ),
+
+        // Switch
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((s) =>
+              s.contains(WidgetState.selected) ? CixioColors.white : null),
+          trackColor: WidgetStateProperty.resolveWith((s) =>
+              s.contains(WidgetState.selected) ? CixioColors.blue : null),
+        ),
+
+        // FAB
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: CixioColors.blue,
+          foregroundColor: CixioColors.white,
+          elevation: 3,
+          shape: StadiumBorder(),
+        ),
+
+        // Chip
+        chipTheme: ChipThemeData(
+          backgroundColor: const Color(0xFF1E293B),
+          selectedColor: CixioColors.blue,
+          labelStyle: const TextStyle(fontSize: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+
+        // Snackbar
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: const Color(0xFF1F2937),
+          contentTextStyle: const TextStyle(color: Color(0xFFE5E7EB)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          behavior: SnackBarBehavior.floating,
+        ),
+
+        // Divider
+        dividerTheme: const DividerThemeData(color: Color(0xFF374151), space: 1),
       );
 }
