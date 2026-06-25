@@ -210,7 +210,7 @@ class _AIFileSelectorTileState extends State<AIFileSelectorTile> {
                 ),
                 child: Text(
                   '$_selectedCount selected',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.aiCyan,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,

@@ -379,7 +379,7 @@ class AppState extends ChangeNotifier {
     if (iconValue is int) {
   try {
     return IconData(
-      iconValue,
+      iconValue, // ignore: non_const_argument_for_const_parameter
       fontFamily: 'MaterialIcons',
     );
   } catch (_) {

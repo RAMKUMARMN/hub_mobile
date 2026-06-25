@@ -19,12 +19,40 @@ import 'screens/notifications/notification_screen.dart';
 import 'screens/support/help_screen.dart';
 import 'screens/support/privacy_screen.dart';
 import 'themes/app_theme.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/local/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  await NotificationService().initialize();
+  try {
+    await dotenv.load(fileName: "assets/app.env");
+  } catch (e) {
+    debugPrint("Failed to load .env file: $e");
+  }
+  try {
+    final apiKey = dotenv.env['FIREBASE_API_KEY'];
+    final appId = dotenv.env['FIREBASE_APP_ID'];
+    final projectId = dotenv.env['FIREBASE_PROJECT_ID'];
+    final messagingSenderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID'];
+
+    if (apiKey != null && appId != null && projectId != null) {
+      await Firebase.initializeApp(
+        options: FirebaseOptions(
+          apiKey: apiKey,
+          appId: appId,
+          messagingSenderId: messagingSenderId ?? '',
+          projectId: projectId,
+          authDomain: '$projectId.firebaseapp.com',
+          storageBucket: '$projectId.firebasestorage.app',
+        ),
+      );
+    } else {
+      await Firebase.initializeApp();
+    }
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
   runApp(const SmartHubApp());
 }
 

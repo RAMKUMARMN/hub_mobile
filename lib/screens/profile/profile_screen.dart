@@ -90,6 +90,7 @@ Future<void> _clearCache() async {
 
   Future<void> _pickProfileImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (!mounted) return;
     if (image != null) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.userId ?? 'default';
@@ -120,12 +121,12 @@ Future<void> _clearCache() async {
         currentName: currentName,
         onNameUpdated: (newName) async {
           final success = await authProvider.updateProfile(name: newName);
-          if (success && mounted) {
+          if (success && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Name updated successfully!'), backgroundColor: Colors.green),
             );
             setState(() {});
-          } else if (mounted) {
+          } else if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(authProvider.errorMessage ?? 'Failed to update name'), backgroundColor: Colors.red),
             );
@@ -191,12 +192,12 @@ Future<void> _clearCache() async {
                   newPasswordController.text,
                 );
                 
-                if (success && mounted) {
+                if (success && context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Password changed successfully!'), backgroundColor: Colors.green),
                   );
-                } else if (mounted) {
+                } else if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(authProvider.errorMessage ?? 'Failed to change password'), backgroundColor: Colors.red),
                   );
@@ -227,13 +228,13 @@ Future<void> _clearCache() async {
             onPressed: () async {
               Navigator.pop(context);
               final success = await authProvider.deleteAccount();
-              if (success && mounted) {
+              if (success && context.mounted) {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => const LoginScreen()),
                   (route) => false,
                 );
-              } else if (mounted) {
+              } else if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(authProvider.errorMessage ?? 'Failed to delete account'), backgroundColor: Colors.red),
                 );
@@ -261,7 +262,7 @@ Future<void> _clearCache() async {
               appState.clearAllData();  
               final authProvider = Provider.of<AuthProvider>(context, listen: false);
               await authProvider.logout();
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -303,14 +304,10 @@ Future<void> _clearCache() async {
     final userName = authProvider.userName ?? 'User';
     final userEmail = authProvider.userEmail ?? 'user@example.com';
     
-    return WillPopScope(
-      onWillPop: () async {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-          return false;
-        }
-        return true;
-      },
+    return PopScope(canPop: !Navigator.canPop(context),onPopInvokedWithResult: (didPop, result) {
+      if (didPop) return; // If already popped by system, do nothing
+      Navigator.pop(context); // Pop internally (back one screen)
+    },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(

@@ -162,7 +162,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
     // In _showCompletionNotification method
     await NotificationService().showImmediateNotification(  // ✅ Changed to public method
       title: '🎉 Focus Session Complete!',
-      body: '$message (${minutesFocused} minutes)',
+      body: '$message ($minutesFocused minutes)',
       payload: 'focus_session_${DateTime.now().millisecondsSinceEpoch}',
     );
     
@@ -208,14 +208,14 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
                 color: AppColors.aiCyan.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.timer, color: AppColors.aiCyan, size: 16),
-                  const SizedBox(width: 8),
+                  Icon(Icons.timer, color: AppColors.aiCyan, size: 16),
+                  SizedBox(width: 8),
                   Text(
                     'Take a 5-minute break',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -459,7 +459,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
                     children: [
                       Column(
                         children: [
-                          Icon(Icons.timer, color: AppColors.aiCyan, size: 24),
+                          const Icon(Icons.timer, color: AppColors.aiCyan, size: 24),
                           const SizedBox(height: 4),
                           Text(
                             '$_completedSessions',
@@ -475,7 +475,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> with TickerProvider
                       ),
                       Column(
                         children: [
-                          Icon(Icons.trending_up, color: AppColors.aiCyan, size: 24),
+                          const Icon(Icons.trending_up, color: AppColors.aiCyan, size: 24),
                           const SizedBox(height: 4),
                           Text(
                             '$_totalMinutesFocused',
