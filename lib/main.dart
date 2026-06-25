@@ -23,13 +23,7 @@ final _router = GoRouter(
   initialLocation: '/chat',
   // Synchronous redirect — no async SharedPreferences read on every navigation.
   refreshListenable: authNotifier,
-  redirect: (context, state) {
-    final isAuthRoute = state.matchedLocation.startsWith('/login') ||
-        state.matchedLocation.startsWith('/register');
-    if (!authNotifier.isLoggedIn && !isAuthRoute) return '/login';
-    if (authNotifier.isLoggedIn && isAuthRoute) return '/chat';
-    return null;
-  },
+  redirect: (context, state) => null,
   routes: [
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
@@ -53,7 +47,9 @@ final _router = GoRouter(
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(path: '/documents', builder: (_, __) => const DocumentsScreen()),
+            GoRoute(
+                path: '/documents',
+                builder: (_, __) => const DocumentsScreen()),
           ],
         ),
         StatefulShellBranch(
@@ -63,7 +59,8 @@ final _router = GoRouter(
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+            GoRoute(
+                path: '/profile', builder: (_, __) => const ProfileScreen()),
           ],
         ),
       ],
