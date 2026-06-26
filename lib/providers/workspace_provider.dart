@@ -131,11 +131,11 @@ class WorkspaceProvider extends ChangeNotifier {
     _setLoading(true);
     try {
       // ✅ FIXED: Using _workspaceService instead of WorkspaceApi
-      // ✅ FIXED: Using toARGB32() instead of deprecated .value
+      // ✅ FIXED: Using .value for backward-compatibility
       final response = await _workspaceService.createWorkspace(
         name: name,
         icon: icon,
-        colorHex: color.toARGB32().toRadixString(16).padLeft(8, '0'),
+        colorHex: color.value.toRadixString(16).padLeft(8, '0'),
       );
 
       if (response['success'] != true || response['data'] == null) {

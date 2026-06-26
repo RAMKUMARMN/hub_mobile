@@ -24,7 +24,7 @@ class Workspace {
     'name': name,
     'type': type.index,
     'icon': icon,
-    'color': color.toARGB32(),
+    'color': color.value,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
