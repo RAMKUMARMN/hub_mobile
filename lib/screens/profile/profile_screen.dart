@@ -577,7 +577,7 @@ Future<void> _clearCache() async {
           ),
           Switch(
             value: value,
-            activeThumbColor: AppColors.aiCyan,
+            activeColor: AppColors.aiCyan,
             onChanged: onChanged,
           ),
         ],
