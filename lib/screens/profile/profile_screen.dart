@@ -136,24 +136,64 @@ Future<void> _clearCache() async {
     );
   }
 
-  void _changePassword() {
-    final currentPasswordController = TextEditingController();
+  void _changePassword() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userEmail = authProvider.userEmail;
+
+    if (userEmail == null || userEmail.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User email not found. Please log in again.')),
+      );
+      return;
+    }
+
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    // Show a loading indicator SnackBar
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(content: Text('Requesting verification token...')),
+    );
+
+    final success = await authProvider.forgotPassword(userEmail);
+
+    if (!mounted) return;
+    scaffoldMessenger.hideCurrentSnackBar();
+
+    if (!success) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage ?? 'Failed to send verification token.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Success - a token has been sent to their email. Now prompt for token and new password!
+    final tokenController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final dialogScaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+        final navigator = Navigator.of(dialogContext);
+
         return AlertDialog(
-          title: const Text('Change Password'),
+          title: const Text('Reset Password'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Text(
+                'A verification token has been sent to your email. Please check your inbox and enter it below along with your new password.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
               TextField(
-                controller: currentPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(hintText: 'Current Password'),
+                controller: tokenController,
+                decoration: const InputDecoration(hintText: 'Verification Token'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -170,40 +210,68 @@ Future<void> _clearCache() async {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => navigator.pop(),
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
               onPressed: () async {
+                if (tokenController.text.trim().isEmpty) {
+                  dialogScaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Please enter the verification token')),
+                  );
+                  return;
+                }
+
                 if (newPasswordController.text != confirmPasswordController.text) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  dialogScaffoldMessenger.showSnackBar(
                     const SnackBar(content: Text('New passwords do not match')),
                   );
                   return;
                 }
                 
                 if (newPasswordController.text.length < 6) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  dialogScaffoldMessenger.showSnackBar(
                     const SnackBar(content: Text('Password must be at least 6 characters')),
                   );
                   return;
                 }
                 
-                final success = await authProvider.changePassword(
-                  currentPasswordController.text,
+                // Show loading on top of dialog
+                showDialog(
+                  context: dialogContext,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                );
+
+                final resetSuccess = await authProvider.resetPassword(
+                  tokenController.text.trim(),
                   newPasswordController.text,
                 );
                 
-                if (success && context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password changed successfully!'), backgroundColor: Colors.green),
+                if (!mounted) return;
+                // Pop loading indicator
+                navigator.pop();
+
+                if (resetSuccess) {
+                  // Pop main dialog
+                  navigator.pop();
+                  dialogScaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Password changed successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
                   );
-                } else if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(authProvider.errorMessage ?? 'Failed to change password'), backgroundColor: Colors.red),
+                } else {
+                  dialogScaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text(authProvider.errorMessage ?? 'Failed to reset password'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               },
-              child: const Text('Change'),
+              child: const Text('Update'),
             ),
           ],
         );

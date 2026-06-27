@@ -8,6 +8,7 @@ import 'workspace_provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _token;
+  String? _refreshToken;
   String? _userId;
   String? _userName;
   String? _userEmail;
@@ -24,6 +25,7 @@ class AuthProvider extends ChangeNotifier {
 
   // Getters
   String? get token => _token;
+  String? get refreshToken => _refreshToken;
   String? get userId => _userId;
   String? get userName => _userName;
   String? get userEmail => _userEmail;
@@ -48,12 +50,14 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _checkExistingSession() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
+    final refreshToken = prefs.getString('auth_refresh_token');
     final userId = prefs.getString('user_id');
     final userName = prefs.getString('user_name');
     final userEmail = prefs.getString('user_email');
 
     if (token != null && userId != null) {
       _token = token;
+      _refreshToken = refreshToken;
       _userId = userId;
       _userName = userName;
       _userEmail = userEmail;
@@ -78,6 +82,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _saveSession() async {
     final prefs = await SharedPreferences.getInstance();
     if (_token != null) await prefs.setString('auth_token', _token!);
+    if (_refreshToken != null) await prefs.setString('auth_refresh_token', _refreshToken!);
     if (_userId != null) await prefs.setString('user_id', _userId!);
     if (_userName != null) await prefs.setString('user_name', _userName!);
     if (_userEmail != null) await prefs.setString('user_email', _userEmail!);
@@ -90,7 +95,6 @@ class AuthProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      // ✅ FIXED: Using _authService instead of ApiService
       final response = await _authService.login(
         email: email,
         password: password,
@@ -98,6 +102,7 @@ class AuthProvider extends ChangeNotifier {
 
       if (response['success'] == true) {
         _token = response['token'] as String;
+        _refreshToken = response['refresh_token'] as String?;
         _userId = response['user_id'] as String;
         _userName = response['name'] as String;
         _userEmail = response['email'] as String;
@@ -130,7 +135,6 @@ class AuthProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      // ✅ FIXED: Using _authService instead of ApiService
       final response = await _authService.register(
         name: name,
         email: email,
@@ -138,20 +142,70 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (response['success'] == true) {
-        _token = response['token'] as String;
-        _userId = response['user_id'] as String;
-        _userName = response['name'] as String;
-        _userEmail = response['email'] as String;
-        _isAuthenticated = true;
-
-        await _saveSession();
-        await _loadUserData();
-
         _setLoading(false);
         notifyListeners();
         return true;
       } else {
         _errorMessage = response['error'] as String? ?? "Registration failed";
+        _setLoading(false);
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = "Connection error. Please try again.";
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ============ OTP VERIFICATION ============
+
+  Future<bool> verifyOtp(String email, String otp) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final response = await _authService.verifyOtp(
+        email: email,
+        otp: otp,
+      );
+
+      if (response['success'] == true) {
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response['error'] as String? ?? "OTP verification failed";
+        _setLoading(false);
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = "Connection error. Please try again.";
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ============ RESEND OTP ============
+
+  Future<bool> resendOtp(String email) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final response = await _authService.resendOtp(
+        email: email,
+      );
+
+      if (response['success'] == true) {
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response['error'] as String? ?? "Failed to resend OTP";
         _setLoading(false);
         notifyListeners();
         return false;
@@ -185,6 +239,7 @@ class AuthProvider extends ChangeNotifier {
       
       if (response['success'] == true) {
         _token = response['token'] as String;
+        _refreshToken = response['refresh_token'] as String?;
         _userId = response['user_id'] as String;
         _userName = response['name'] as String;
         _userEmail = response['email'] as String;
@@ -214,6 +269,33 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = "Google sign-in failed: ${e.toString()}";
       _setLoading(false);
       notifyListeners();
+      return false;
+    }
+  }
+
+  // ============ REFRESH TOKENS ============
+
+  Future<bool> refreshTokens() async {
+    if (_refreshToken == null) return false;
+
+    try {
+      final response = await _authService.refreshToken(
+        refreshToken: _refreshToken!,
+      );
+
+      if (response['success'] == true) {
+        final data = response['data'];
+        _token = data['access_token'] as String;
+        _refreshToken = data['refresh_token'] as String;
+
+        await _saveSession();
+        notifyListeners();
+        return true;
+      } else {
+        await logout();
+        return false;
+      }
+    } catch (e) {
       return false;
     }
   }
@@ -257,7 +339,29 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  Future<bool> forgotPassword(String email) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final response = await _authService.forgotPassword(email: email);
+
+      if (response['success'] == true) {
+        _setLoading(false);
+        return true;
+      } else {
+        _errorMessage = response['error'] as String? ?? "Forgot password request failed";
+        _setLoading(false);
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = "Connection error";
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(String token, String newPassword) async {
     _setLoading(true);
     _clearError();
 
@@ -268,9 +372,8 @@ class AuthProvider extends ChangeNotifier {
     }
 
     try {
-      // ✅ FIXED: Using _authService instead of ApiService
-      final response = await _authService.changePassword(
-        currentPassword: currentPassword,
+      final response = await _authService.resetPassword(
+        token: token,
         newPassword: newPassword,
       );
 
@@ -278,7 +381,7 @@ class AuthProvider extends ChangeNotifier {
         _setLoading(false);
         return true;
       } else {
-        _errorMessage = response['error'] as String? ?? "Password change failed";
+        _errorMessage = response['error'] as String? ?? "Password reset failed";
         _setLoading(false);
         return false;
       }
@@ -309,6 +412,7 @@ class AuthProvider extends ChangeNotifier {
     
     // Clear auth state
     _token = null;
+    _refreshToken = null;
     _userId = null;
     _userName = null;
     _userEmail = null;
@@ -317,6 +421,7 @@ class AuthProvider extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+    await prefs.remove('auth_refresh_token');
     await prefs.remove('user_id');
     await prefs.remove('user_name');
     await prefs.remove('user_email');
@@ -361,6 +466,7 @@ class AuthProvider extends ChangeNotifier {
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+    await prefs.remove('auth_refresh_token');
     await prefs.remove('user_id');
     await prefs.remove('user_name');
     await prefs.remove('user_email');
@@ -373,6 +479,7 @@ class AuthProvider extends ChangeNotifier {
     }
     
     _token = null;
+    _refreshToken = null;
     _userId = null;
     _userName = null;
     _userEmail = null;
