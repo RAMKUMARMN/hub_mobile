@@ -20,6 +20,8 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
   String? _error;
   final _storage = LocalStorageService();
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
  @override
   void initState() {
     super.initState();

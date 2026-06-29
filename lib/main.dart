@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/notes/notes_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'services/auth_state.dart';
 import 'screens/auth/register_screen.dart';
@@ -61,6 +62,14 @@ final _router = GoRouter(
             GoRoute(path: '/todos', builder: (_, __) => const TodosScreen()),
           ],
         ),
+        StatefulShellBranch(
+          routes: [
+             GoRoute(
+               path: '/notes',
+               builder: (_, __) => const NotesScreen(),
+             ),
+           ],
+         ),
         StatefulShellBranch(
           routes: [
             GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),

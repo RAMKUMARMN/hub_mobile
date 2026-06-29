@@ -17,8 +17,9 @@ class DocumentsScreen extends StatefulWidget {
 class _DocumentsScreenState extends State<DocumentsScreen> {
   List<Document> _documents = [];
   bool _isLoading = true;
-  bool _isUploading = false;
   String? _error;
+  CancelToken? _uploadCancelToken;
+  bool _isUploading = false;
   Timer? _pollTimer;
 
   @override
@@ -67,7 +68,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final file = result.files.single;
     if (file.bytes == null && file.path == null) return;
 
-    setState(() { _isUploading = true; });
+    setState(() {
+  _isUploading = true;
+});
+
+print("Uploading = $_isUploading");
+
+await Future.delayed(const Duration(seconds: 5));
     try {
       final filename = file.name;
       final contentType = DioMediaType.parse(_mimeTypeFor(filename));
@@ -83,15 +90,41 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               contentType: contentType,
             );
       final formData = FormData.fromMap({'file': multipartFile});
-      await ApiService().dio.post('/documents/upload', data: formData);
-      await _loadDocuments();
+
+_uploadCancelToken = CancelToken();
+
+await ApiService().dio.post(
+  '/documents/upload',
+  data: formData,
+  cancelToken: _uploadCancelToken,
+);
+
+_uploadCancelToken = null;
+
+await _loadDocuments();
+    
     } on DioException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: ${e.message ?? "Unknown error"}')),
-        );
-      }
-    } catch (e) {
+  if (CancelToken.isCancel(e)) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Upload cancelled'),
+        ),
+      );
+    }
+  } else {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Upload failed: ${e.message ?? "Unknown error"}',
+          ),
+        ),
+      );
+    }
+  }
+}
+     catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Upload failed: $e')),
@@ -197,11 +230,17 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab_documents',
-        onPressed: _isUploading ? null : _uploadDocument,
-        icon: _isUploading
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.upload_file),
-        label: Text(_isUploading ? 'Uploading...' : 'Upload'),
+        onPressed: _isUploading
+            ? () {
+                _uploadCancelToken?.cancel("Upload cancelled");
+              }
+            : _uploadDocument,
+        icon: Icon(
+           _isUploading ? Icons.close : Icons.upload_file,
+        ),
+        label: Text(
+          _isUploading ? 'Cancel Upload' : 'Upload',
+        ),
       ),
     );
   }
