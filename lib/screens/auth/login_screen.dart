@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../themes/app_colors.dart';
 import '../home/home_screen.dart';
+import 'otp_screen.dart';
 import '../../config/app_config.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -41,6 +43,205 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     rotateQuotes();
+    _checkAndResetAuth();
+  }
+
+  Future<void> _checkAndResetAuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (token == null && mounted) {
+      final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+      if (authProvider.isAuthenticated) {
+        await authProvider.logout();
+      }
+    }
+  }
+
+  void _showForgotPasswordFlow() {
+    final emailController = TextEditingController(text: _emailController.text);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+        final navigator = Navigator.of(dialogContext);
+        
+        return AlertDialog(
+          title: const Text('Reset Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Enter your registered email address to receive a password reset token.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(hintText: 'Email Address'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => navigator.pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final email = emailController.text.trim();
+                if (email.isEmpty) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Please enter your email')),
+                  );
+                  return;
+                }
+
+                // Pop the email dialog
+                navigator.pop();
+
+                // Show loading snackbar
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Requesting verification token...')),
+                );
+
+                final success = await authProvider.forgotPassword(email);
+
+                if (!mounted) return;
+                scaffoldMessenger.hideCurrentSnackBar();
+
+                if (!success) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text(authProvider.errorMessage ?? 'Request failed'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // Success - show reset form dialog
+                _showResetPasswordConfirmDialog(email);
+              },
+              child: const Text('Send Token'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showResetPasswordConfirmDialog(String email) {
+    final tokenController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+        final navigator = Navigator.of(dialogContext);
+
+        return AlertDialog(
+          title: const Text('Confirm Reset'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'A verification token has been sent to $email. Enter it below along with your new password.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: tokenController,
+                decoration: const InputDecoration(hintText: 'Verification Token'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: newPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(hintText: 'New Password (min 6 characters)'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(hintText: 'Confirm New Password'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => navigator.pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final token = tokenController.text.trim();
+                final newPass = newPasswordController.text;
+                final confirmPass = confirmPasswordController.text;
+
+                if (token.isEmpty) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Please enter the token')),
+                  );
+                  return;
+                }
+
+                if (newPass != confirmPass) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Passwords do not match')),
+                  );
+                  return;
+                }
+
+                if (newPass.length < 6) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Password must be at least 6 characters')),
+                  );
+                  return;
+                }
+
+                // Show loading
+                showDialog(
+                  context: dialogContext,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                );
+
+                final resetSuccess = await authProvider.resetPassword(token, newPass);
+
+                if (!mounted) return;
+                // Pop loading
+                navigator.pop();
+
+                if (resetSuccess) {
+                  // Pop confirm dialog
+                  navigator.pop();
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Password reset successfully! You can now log in.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text(authProvider.errorMessage ?? 'Password reset failed'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Reset Password'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -296,14 +497,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 14),
 
+          /// FORGOT PASSWORD
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Forgot password feature coming soon!')),
-                );
-              },
+              onPressed: _showForgotPasswordFlow,
               child: Text(
                 "Forgot Password?",
                 style: TextStyle(color: secondaryText),
@@ -492,9 +690,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     final success = await authProvider.register(name, email, password);
 
                     if (success && mounted) {
-                      Navigator.pushReplacement(
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Registration successful! Please verify the OTP sent to your email.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const HomeScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => OtpScreen(
+                            email: email,
+                            password: password,
+                          ),
+                        ),
                       );
                     } else if (mounted && authProvider.errorMessage != null) {
                       ScaffoldMessenger.of(context).showSnackBar(

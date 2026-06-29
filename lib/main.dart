@@ -21,6 +21,7 @@ import 'screens/support/privacy_screen.dart';
 import 'themes/app_theme.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/local/notification_service.dart';
+import 'services/navigation/navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,7 @@ class SmartHubApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
+            navigatorKey: NavigationService.navigatorKey,
             title: "SmartHub",
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
