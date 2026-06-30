@@ -92,7 +92,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _uploadDocument() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'txt', 'md', 'docx'],
       withData: true, // ensures bytes are available on iOS document picker
@@ -147,10 +147,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         );
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isUploading = false;
         });
+      }
     }
   }
 

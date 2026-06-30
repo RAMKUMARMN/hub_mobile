@@ -22,11 +22,9 @@ class AuthService {
         },
       );
 
-      final accessToken =
-          response.data['access_token'] as String?;
+      final accessToken = response.data['access_token'] as String?;
 
-      final refreshToken =
-          response.data['refresh_token'] as String?;
+      final refreshToken = response.data['refresh_token'] as String?;
 
       if (accessToken == null || refreshToken == null) {
         throw Exception('Invalid authentication response.');
@@ -61,11 +59,9 @@ class AuthService {
 
       return (user, accessToken, refreshToken);
     } on DioException catch (e) {
-      final message =
-          e.response?.data is Map<String, dynamic>
-              ? (e.response?.data['detail']?.toString() ??
-                  e.message)
-              : e.message;
+      final message = e.response?.data is Map<String, dynamic>
+          ? (e.response?.data['detail']?.toString() ?? e.message)
+          : e.message;
 
       throw Exception(
         message ?? 'Unable to connect to the server.',
@@ -79,11 +75,12 @@ class AuthService {
     }
   }
 
-  Future<User> register({
+  Future<void> register({
     required String email,
     required String password,
     required String fullName,
     String? phone,
+    String? deviceToken, // 🚀 1. Add this parameter line
   }) async {
     try {
       await _api.dio.post(
@@ -92,23 +89,19 @@ class AuthService {
           'email': email,
           'password': password,
           'full_name': fullName,
-          if (phone != null && phone.isNotEmpty)
-            'phone': phone,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
+          if (deviceToken != null && deviceToken.isNotEmpty)
+            'device_token':
+                deviceToken, // 🚀 2. Pass it to your FastAPI backend
         },
       );
 
-      final (user, _, _) = await login(
-        email,
-        password,
-      );
-
-      return user;
+      // 💡 Note: We removed the auto-login line here because the user
+      // needs to type in their 6-digit OTP code first on the next screen!
     } on DioException catch (e) {
-      final message =
-          e.response?.data is Map<String, dynamic>
-              ? (e.response?.data['detail']?.toString() ??
-                  e.message)
-              : e.message;
+      final message = e.response?.data is Map<String, dynamic>
+          ? (e.response?.data['detail']?.toString() ?? e.message)
+          : e.message;
 
       throw Exception(
         message ?? 'Registration failed.',

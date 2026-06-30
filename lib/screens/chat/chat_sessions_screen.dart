@@ -95,10 +95,11 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
         );
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isCreating = false;
         });
+      }
     }
   }
 
