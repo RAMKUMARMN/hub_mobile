@@ -13,6 +13,7 @@ class AppShell extends StatelessWidget {
     _Tab(icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble, label: 'Chat'),
     _Tab(icon: Icons.folder_outlined, activeIcon: Icons.folder, label: 'Documents'),
     _Tab(icon: Icons.check_circle_outline, activeIcon: Icons.check_circle, label: 'Todos'),
+    _Tab(icon: Icons.sticky_note_2_outlined, activeIcon: Icons.sticky_note_2, label: 'Notes',),
     _Tab(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile'),
   ];
 
