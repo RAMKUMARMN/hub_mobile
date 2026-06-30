@@ -27,10 +27,12 @@ class DocumentService {
     }
   }
 
-  /// Upload a document to a workspace
+  /// Upload a document to a workspace.
+  /// Pass [sessionId] to scope the document to a specific chat session (required for RAG).
   Future<Map<String, dynamic>> uploadDocument({
     required File file,
     required String workspaceId,
+    String? sessionId,
     String? customFileName,
   }) async {
     try {
@@ -41,9 +43,10 @@ class DocumentService {
         return {'success': false, 'error': 'Not authenticated'};
       }
 
+      final queryParam = sessionId != null ? '?session_id=$sessionId' : '';
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiClient.baseUrl}/documents/upload'),
+        Uri.parse('${ApiClient.baseUrl}/documents/upload$queryParam'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';

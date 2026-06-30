@@ -119,81 +119,74 @@ class ApiClient {
     }
   }
 
-  /// ✅ FIXED: Streaming request for AI chat with proper NDJSON parsing
+  /// Streaming request — parses SSE lines from the backend and calls onChunk
+  /// with a parsed Map that may contain: delta, thinking, sources, status, error.
   Future<void> streamRequest({
     required String endpoint,
     required Map<String, dynamic> body,
-    required void Function(String chunk) onChunk,
+    required void Function(Map<String, dynamic> event) onChunk,
     bool requiresAuth = true,
   }) async {
     try {
       logger.i('📤 Stream request to: $endpoint');
-      logger.i('📤 Body: $body');
-      
+
       final request = http.Request(
         'POST',
         Uri.parse('$baseUrl$endpoint'),
       );
-      
+
       final headers = await getHeaders(includeAuth: requiresAuth);
       request.headers.addAll(headers);
+      // SSE streams need text/event-stream accept header
+      request.headers['Accept'] = 'text/event-stream';
       request.body = jsonEncode(body);
-      
-      logger.i('📤 Headers: ${request.headers}');
-      logger.i('📤 Body JSON: ${request.body}');
-      
+
       final response = await request.send();
-      
+
       logger.i('📥 Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final stream = response.stream.transform(utf8.decoder);
-        String buffer = ''; // ✅ Buffer to handle partial lines across chunks
+        String buffer = '';
 
-        await for (var part in stream) {
+        await for (final part in stream) {
           buffer += part;
 
-          // ✅ Only process complete lines; keep the remainder in buffer
+          // Process every complete line
           while (buffer.contains('\n')) {
             final newlineIndex = buffer.indexOf('\n');
-            final line = buffer.substring(0, newlineIndex).trim();
+            final rawLine = buffer.substring(0, newlineIndex).trim();
             buffer = buffer.substring(newlineIndex + 1);
 
-            if (line.isEmpty) continue;
+            if (rawLine.isEmpty) continue;
+
+            // Backend sends SSE: "data: {...}" or "data: [DONE]"
+            final String line;
+            if (rawLine.startsWith('data: ')) {
+              line = rawLine.substring(6).trim();
+            } else {
+              line = rawLine;
+            }
+
+            if (line.isEmpty || line == '[DONE]') break;
 
             try {
-              final data = jsonDecode(line);
-              if (data['response'] != null) {
-                onChunk(data['response']);
-              } else if (data['error'] != null) {
-                onChunk('Error: ${data['error']}');
-              }
+              final Map<String, dynamic> data =
+                  jsonDecode(line) as Map<String, dynamic>;
+              onChunk(data);
             } catch (e) {
-              logger.w('⚠️ Skipped malformed line: $line');
+              logger.w('⚠️ Skipped malformed SSE line: $rawLine');
             }
-          }
-        }
-
-        // ✅ Handle any trailing data with no final newline
-        final trailing = buffer.trim();
-        if (trailing.isNotEmpty) {
-          try {
-            final data = jsonDecode(trailing);
-            if (data['response'] != null) {
-              onChunk(data['response']);
-            }
-          } catch (_) {
-            // Ignore incomplete trailing data
           }
         }
       } else {
         final errorBody = await response.stream.bytesToString();
-        logger.e('❌ Response body: $errorBody');
-        onChunk("Error: Server returned ${response.statusCode}");
+        logger.e('❌ Stream error body: $errorBody');
+        onChunk({'error': 'Server returned ${response.statusCode}: $errorBody'});
       }
     } catch (e) {
       logger.e('❌ Stream error: $e');
-      onChunk("Error: ${e.toString()}");
+      onChunk({'error': e.toString()});
     }
   }
 }

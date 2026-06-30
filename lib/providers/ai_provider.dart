@@ -1,7 +1,5 @@
 // lib/providers/ai_provider.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../models/chat/ai_chat.dart';
 import '../models/chat/chat_message.dart';
 import '../models/workspace/workspace.dart';
@@ -10,13 +8,19 @@ import '../services/ai/ai_services.dart';
 class AIProvider extends ChangeNotifier {
   final AIService _aiService = AIService();
 
-  // ✅ Chats organized by workspace ID
+  // ✅ Chats organized by workspace ID (kept for sidebar display)
   Map<String, List<AIChat>> _workspaceChats = {};
   AIChat? _currentChat;
   Workspace? _currentWorkspace;
   bool _isTyping = false;
   bool _isLoading = false;
   String? _errorMessage;
+
+  // ✅ RAG / Feature toggles (can be surfaced in the UI)
+  bool useRag = false;
+  bool webSearch = false;
+  bool thinkingMode = true;
+  List<String> selectedDocumentIds = [];
 
   // Suggested prompts based on workspace type
   final Map<String, List<String>> _workspacePrompts = {
@@ -64,121 +68,176 @@ class AIProvider extends ChangeNotifier {
   }
 
   AIProvider() {
-    _loadChats();
+    // No local storage load — sessions are fetched from backend per workspace
   }
 
-  // ============ STORAGE ============
+  // ============ SESSION SYNC WITH BACKEND ============
 
-  Future<void> _loadChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final chatsJson = prefs.getString('ai_chats');
-    if (chatsJson != null) {
-      try {
-        final Map<String, dynamic> decoded = jsonDecode(chatsJson);
-        _workspaceChats = {};
-        decoded.forEach((workspaceId, chats) {
-          _workspaceChats[workspaceId] =
-              (chats as List).map((c) => AIChat.fromJson(c)).toList();
-        });
-      } catch (e) {
-        debugPrint('Error loading chats: $e');
-        _workspaceChats = {};
+  /// Load all sessions for the current workspace from the backend.
+  Future<void> loadSessionsFromBackend() async {
+    _setLoading(true);
+    try {
+      final response = await _aiService.listSessions();
+      if (response['success'] == true) {
+        final workspaceId = _currentWorkspace?.id ?? 'general';
+        final List<dynamic> rawSessions = response['data'] is List
+            ? response['data']
+            : [];
+
+        final chats = rawSessions.map((s) {
+          return AIChat(
+            id: s['id'].toString(),
+            workspaceId: workspaceId,
+            title: s['title'] ?? 'Chat',
+            messages: const [],
+            createdAt: s['created_at'] != null
+                ? DateTime.parse(s['created_at'].toString())
+                : DateTime.now(),
+            updatedAt: s['updated_at'] != null
+                ? DateTime.parse(s['updated_at'].toString())
+                : DateTime.now(),
+          );
+        }).toList();
+
+        _workspaceChats[workspaceId] = chats;
+
+        if (chats.isNotEmpty) {
+          _currentChat = chats.first;
+        } else {
+          // No sessions exist yet — create one
+          await _createSessionOnBackend();
+        }
       }
+    } catch (e) {
+      debugPrint('❌ Error loading sessions: $e');
+      // Fallback: ensure a local chat shell exists
+      _ensureLocalFallbackChat();
+    } finally {
+      _setLoading(false);
     }
-
-    _ensureWorkspaceHasChats();
-    notifyListeners();
   }
 
-  Future<void> _saveChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final Map<String, List<Map<String, dynamic>>> allChatsJson = {};
-    _workspaceChats.forEach((workspaceId, chats) {
-      allChatsJson[workspaceId] = chats.map((c) => c.toJson()).toList();
-    });
-    await prefs.setString('ai_chats', jsonEncode(allChatsJson));
+  /// Fetch and load messages for the currently active chat.
+  Future<void> loadMessagesForCurrentChat() async {
+    if (_currentChat == null) return;
+    final sessionId = _currentChat!.id;
+
+    // Don't reload if it already has messages
+    if (_currentChat!.messages.isNotEmpty) return;
+
+    _setLoading(true);
+    try {
+      final response = await _aiService.getSessionMessages(sessionId);
+      if (response['success'] == true) {
+        final List<dynamic> rawMessages = response['data'] is List
+            ? response['data']
+            : [];
+
+        final messages = rawMessages
+            .map((m) => ChatMessage.fromJson(m))
+            .toList();
+
+        _updateCurrentChatMessages(messages);
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading messages for session $sessionId: $e');
+    } finally {
+      _setLoading(false);
+    }
   }
 
-  void _ensureWorkspaceHasChats() {
+  Future<void> _createSessionOnBackend({String title = 'New Chat'}) async {
+    final workspaceId = _currentWorkspace?.id ?? 'general';
+    final response = await _aiService.createSession(title: title);
+
+    if (response['success'] == true) {
+      final data = response['data'];
+      final newChat = AIChat(
+        id: data['id'].toString(),
+        workspaceId: workspaceId,
+        title: data['title'] ?? 'New Chat',
+        messages: const [],
+        createdAt: data['created_at'] != null
+            ? DateTime.parse(data['created_at'].toString())
+            : DateTime.now(),
+        updatedAt: data['updated_at'] != null
+            ? DateTime.parse(data['updated_at'].toString())
+            : DateTime.now(),
+      );
+
+      if (!_workspaceChats.containsKey(workspaceId)) {
+        _workspaceChats[workspaceId] = [];
+      }
+      _workspaceChats[workspaceId]!.insert(0, newChat);
+      _currentChat = newChat;
+      notifyListeners();
+    }
+  }
+
+  void _ensureLocalFallbackChat() {
     final workspaceId = _currentWorkspace?.id ?? 'general';
     if (!_workspaceChats.containsKey(workspaceId) ||
         _workspaceChats[workspaceId]!.isEmpty) {
       _workspaceChats[workspaceId] = [];
-      _createNewChat();
-    } else {
-      _currentChat = _workspaceChats[workspaceId]!.first;
+      final shell = AIChat(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        workspaceId: workspaceId,
+        title: 'New Conversation',
+        messages: const [],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      _workspaceChats[workspaceId]!.add(shell);
+      _currentChat = shell;
+      notifyListeners();
     }
   }
 
   // ============ CHAT MANAGEMENT ============
 
-  void createNewChat() {
+  Future<void> createNewChat() async {
     final workspaceId = _currentWorkspace?.id ?? 'general';
     final chats = _workspaceChats[workspaceId] ?? [];
 
+    // Reuse if there's already an empty chat at the top
     if (chats.isNotEmpty && chats.first.messages.isEmpty) {
       _currentChat = chats.first;
       notifyListeners();
       return;
     }
 
-    _createNewChat();
-  }
-
-  void _createNewChat() {
-    final workspaceId = _currentWorkspace?.id ?? 'general';
-    final newChat = AIChat(
-      id: 'new_${DateTime.now().millisecondsSinceEpoch}',
-      workspaceId: workspaceId,
-      title: 'New Conversation',
-      messages: [],
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    if (!_workspaceChats.containsKey(workspaceId)) {
-      _workspaceChats[workspaceId] = [];
-    }
-    _workspaceChats[workspaceId]!.insert(0, newChat);
-    _currentChat = newChat;
-    _saveChats();
-    notifyListeners();
+    await _createSessionOnBackend();
   }
 
   void selectChat(AIChat chat) {
-    final workspaceId = _currentWorkspace?.id ?? 'general';
-    final chatWorkspaceId = chat.workspaceId;
-
-    if (chatWorkspaceId != workspaceId) {
-      final workspace = Workspace(
-        id: chatWorkspaceId,
-        name: chatWorkspaceId,
-        type: WorkspaceType.general,
-        icon: '📁',
-        color: Colors.blue,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      setWorkspaceContext(workspace);
-    }
-
     _currentChat = chat;
     notifyListeners();
+    // Lazy-load messages from backend
+    loadMessagesForCurrentChat();
   }
 
-  void deleteChat(String chatId) {
+  Future<void> deleteChat(String chatId) async {
     final workspaceId = _currentWorkspace?.id ?? 'general';
     final chats = _workspaceChats[workspaceId] ?? [];
-    chats.removeWhere((c) => c.id == chatId);
 
+    // Optimistic removal
+    chats.removeWhere((c) => c.id == chatId);
     if (_currentChat?.id == chatId) {
       _currentChat = chats.isNotEmpty ? chats.first : null;
-      if (chats.isEmpty) {
-        _createNewChat();
-      }
     }
-    _saveChats();
     notifyListeners();
+
+    // Call the backend (fire-and-forget)
+    try {
+      await _aiService.deleteSession(chatId);
+    } catch (e) {
+      debugPrint('❌ Error deleting session $chatId: $e');
+    }
+
+    // If no sessions left, create a new one
+    if (chats.isEmpty) {
+      await _createSessionOnBackend();
+    }
   }
 
   void updateChatTitle(String chatId, String newTitle) {
@@ -186,251 +245,301 @@ class AIProvider extends ChangeNotifier {
     final chats = _workspaceChats[workspaceId] ?? [];
     final index = chats.indexWhere((c) => c.id == chatId);
     if (index != -1) {
-      final oldChat = chats[index];
+      final old = chats[index];
       chats[index] = AIChat(
-        id: oldChat.id,
-        workspaceId: oldChat.workspaceId,
+        id: old.id,
+        workspaceId: old.workspaceId,
         title: newTitle,
-        messages: oldChat.messages,
-        createdAt: oldChat.createdAt,
+        messages: old.messages,
+        createdAt: old.createdAt,
         updatedAt: DateTime.now(),
       );
       if (_currentChat?.id == chatId) {
         _currentChat = chats[index];
       }
-      _saveChats();
       notifyListeners();
     }
   }
 
   void setWorkspaceContext(Workspace workspace) {
     if (_currentWorkspace?.id == workspace.id) return;
-
     _currentWorkspace = workspace;
-
-    final workspaceId = workspace.id;
-    if (!_workspaceChats.containsKey(workspaceId) ||
-        _workspaceChats[workspaceId]!.isEmpty) {
-      _workspaceChats[workspaceId] = [];
-      _createNewChat();
-    } else {
-      _currentChat = _workspaceChats[workspaceId]!.first;
-    }
-
+    _currentChat = null;
     notifyListeners();
+    // Fetch sessions for the new workspace
+    loadSessionsFromBackend();
   }
 
-  // ============ SEND MESSAGE ============
+  // ============ SEND MESSAGE STREAM ============
 
-  Future<void> sendMessage(String message, {String? workspaceId}) async {
+  Future<void> sendMessageStream({
+    required String message,
+    required void Function(String chunk) onChunk,
+    String? workspaceId,
+    String? chatId,
+  }) async {
     if (message.trim().isEmpty) return;
 
+    // Ensure there is an active session
+    if (_currentChat == null) {
+      await _createSessionOnBackend(title: _aiService.generateLocalTitle(message));
+    }
+    if (_currentChat == null) {
+      _addErrorMessage('Could not create a chat session. Please try again.');
+      return;
+    }
+
+    final String sessionId = _currentChat!.id;
+
+    // Append the user message locally for instant feedback
     _addMessageToCurrentChat(ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: '${DateTime.now().millisecondsSinceEpoch}_user',
       sender: 'user',
       message: message,
       timestamp: DateTime.now(),
     ));
+
     _setTyping(true);
 
+    // Prepare the AI message placeholder
+    String? aiMessageId;
+    bool aiMessageCreated = false;
+
     try {
-      final response = await _aiService.sendMessage(
-        message,
-        workspaceId: workspaceId ?? _currentWorkspace?.id,
+      await _aiService.sendMessageStream(
+        sessionId: sessionId,
+        message: message,
+        useRag: useRag,
+        webSearch: webSearch,
+        thinkingMode: thinkingMode,
+        documentIds: selectedDocumentIds.isNotEmpty ? selectedDocumentIds : null,
+        onEvent: (event) {
+          if (event.containsKey('delta')) {
+            final token = event['delta'] as String? ?? '';
+            if (token.isEmpty) return;
+
+            if (!aiMessageCreated) {
+              aiMessageCreated = true;
+              aiMessageId = '${DateTime.now().millisecondsSinceEpoch}_ai';
+              _setTyping(false);
+              _addMessageToCurrentChat(ChatMessage(
+                id: aiMessageId!,
+                sender: 'ai',
+                message: token,
+                timestamp: DateTime.now(),
+              ));
+            } else {
+              _appendDeltaToLastAIMessage(sessionId, token);
+            }
+            onChunk(token);
+
+          } else if (event.containsKey('thinking')) {
+            final thinkToken = event['thinking'] as String? ?? '';
+            if (thinkToken.isEmpty) return;
+            _appendThinkingToLastAIMessage(sessionId, thinkToken);
+
+          } else if (event.containsKey('sources')) {
+            final sources = event['sources'];
+            if (sources is List) {
+              _attachSourcesToLastAIMessage(sessionId,
+                  sources.map((s) => Map<String, dynamic>.from(s)).toList());
+            }
+
+          } else if (event.containsKey('error')) {
+            debugPrint('❌ Stream event error: ${event['error']}');
+          }
+        },
       );
 
-      _addMessageToCurrentChat(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sender: 'ai',
-        message: response,
-        timestamp: DateTime.now(),
-      ));
-      _setTyping(false);
+      if (!aiMessageCreated) {
+        _setTyping(false);
+        _addErrorMessage('No response received. Please try again.');
+      } else {
+        _setTyping(false);
+      }
     } catch (e) {
+      debugPrint('❌ Stream error: $e');
+      _setTyping(false);
       _addErrorMessage('Sorry, I encountered an error. Please try again.');
-      _setTyping(false);
     }
   }
 
-  // ============ STREAMING ============
+  // ============ MESSAGE MUTATION HELPERS ============
 
- Future<void> sendMessageStream({
-  required String message,
-  required void Function(String chunk) onChunk,
-  String? workspaceId,
-  String? chatId,
-}) async {
-  if (message.trim().isEmpty) return;
-
-  // ✅ Ensure we have a current chat
-  if (_currentChat == null) {
-    _createNewChat();
-  }
-
-  // ✅ Store the chat ID before adding messages
-  final String chatIdToUse = _currentChat!.id;
-  debugPrint('📝 Using chat ID: $chatIdToUse');
-
-  _addMessageToCurrentChat(ChatMessage(
-    id: DateTime.now().millisecondsSinceEpoch.toString(),
-    sender: 'user',
-    message: message,
-    timestamp: DateTime.now(),
-  ));
-
-  // ✅ Don't create/add the AI message yet — wait for the first chunk
-  String? aiMessageId;
-  bool aiMessageCreated = false;
-
-  _setTyping(true);
-
-  try {
-    await _aiService.sendMessageStream(
-      message: message,
-      onChunk: (chunk) {
-        debugPrint('📥 Received chunk: ${chunk.length} characters');
-
-        if (!aiMessageCreated) {
-          // ✅ First chunk arrived — create the bubble now, turn off typing
-          aiMessageCreated = true;
-          aiMessageId = DateTime.now().millisecondsSinceEpoch.toString();
-          _setTyping(false);
-
-          _addMessageToCurrentChat(ChatMessage(
-            id: aiMessageId!,
-            sender: 'ai',
-            message: chunk,
-            timestamp: DateTime.now(),
-          ));
-        } else {
-          // ✅ Subsequent chunks — append to the existing bubble
-          _updateLastMessageWithId(chatIdToUse, chunk);
-        }
-
-        onChunk(chunk);
-      },
-      workspaceId: workspaceId ?? _currentWorkspace?.id,
-      chatId: null,
-    );
-
-    // ✅ Edge case: stream completed but produced zero chunks
-    if (!aiMessageCreated) {
-      _setTyping(false);
-      _addErrorMessage('No response received. Please try again.');
-    }
-
-    _setTyping(false);
-    _saveChats();
-  } catch (e) {
-    debugPrint('❌ Stream error: $e');
-    _setTyping(false);
-    _addErrorMessage('Sorry, I encountered an error. Please try again.');
-  }
-}
-
-  // ✅ SINGLE METHOD to update last message (merged both versions)
-  void _updateLastMessageWithId(String chatId, String chunk) {
-    debugPrint('🔍 DEBUG: _updateLastMessageWithId called');
-    debugPrint('🔍 DEBUG: chatId = $chatId');
-    debugPrint('🔍 DEBUG: chunk = $chunk');
-
+  void _addMessageToCurrentChat(ChatMessage message) {
+    if (_currentChat == null) return;
     final workspaceId = _currentWorkspace?.id ?? 'general';
     final chats = _workspaceChats[workspaceId] ?? [];
-
-    debugPrint('🔍 DEBUG: workspaceId = $workspaceId');
-    debugPrint('🔍 DEBUG: Available chats = ${chats.map((c) => c.id).toList()}');
-    debugPrint('🔍 DEBUG: Current chat = ${_currentChat?.id}');
-
-    final index = chats.indexWhere((c) => c.id == chatId);
-    debugPrint('🔍 DEBUG: Index found = $index');
-
-    if (index != -1) {
-      final chat = chats[index];
-      final messages = chat.messages;
-      if (messages.isNotEmpty) {
-        final lastMessage = messages.last;
-        if (lastMessage.sender == 'ai') {
-          final updatedMessage = ChatMessage(
-            id: lastMessage.id,
-            sender: lastMessage.sender,
-            message: lastMessage.message + chunk,
-            timestamp: lastMessage.timestamp,
-            isError: lastMessage.isError,
-          );
-          messages.removeLast();
-          messages.add(updatedMessage);
-
-          chats[index] = AIChat(
-            id: chat.id,
-            workspaceId: chat.workspaceId,
-            title: chat.title,
-            messages: messages,
-            createdAt: chat.createdAt,
-            updatedAt: DateTime.now(),
-          );
-
-          if (_currentChat?.id == chatId) {
-            _currentChat = chats[index];
-          }
-
-          notifyListeners();
-        }
-      }
-    } else {
-      debugPrint('⚠️ Chat not found with ID: $chatId');
-    }
-  }
-
-  // ✅ UPDATED: Add message to current chat
-  void _addMessageToCurrentChat(ChatMessage message) {
-    if (_currentChat == null) {
-      _createNewChat();
-    }
-
-    final workspaceId = _currentWorkspace?.id ?? 'general';
-    if (!_workspaceChats.containsKey(workspaceId)) {
-      _workspaceChats[workspaceId] = [];
-    }
-
-    final chats = _workspaceChats[workspaceId]!;
     final index = chats.indexWhere((c) => c.id == _currentChat!.id);
 
     if (index != -1) {
-      final oldChat = chats[index];
-      final updatedMessages = [...oldChat.messages, message];
-      final updatedChat = AIChat(
-        id: oldChat.id,
-        workspaceId: oldChat.workspaceId,
-        title: oldChat.title == 'New Conversation' && oldChat.messages.isEmpty
-            ? _generateTitle(message.message)
-            : oldChat.title,
-        messages: updatedMessages,
-        createdAt: oldChat.createdAt,
+      final old = chats[index];
+      final updated = AIChat(
+        id: old.id,
+        workspaceId: old.workspaceId,
+        title: old.title == 'New Conversation' && old.messages.isEmpty
+            ? _aiService.generateLocalTitle(message.message)
+            : old.title,
+        messages: [...old.messages, message],
+        createdAt: old.createdAt,
         updatedAt: DateTime.now(),
       );
-      chats[index] = updatedChat;
-      _currentChat = updatedChat;
-      _saveChats();
-    } else {
-      _createNewChat();
-      _addMessageToCurrentChat(message);
+      chats[index] = updated;
+      _currentChat = updated;
     }
-
     notifyListeners();
   }
 
-  String _generateTitle(String firstMessage) {
-    if (firstMessage.length > 30) {
-      return '${firstMessage.substring(0, 27)}...';
+  void _updateCurrentChatMessages(List<ChatMessage> messages) {
+    if (_currentChat == null) return;
+    final workspaceId = _currentWorkspace?.id ?? 'general';
+    final chats = _workspaceChats[workspaceId] ?? [];
+    final index = chats.indexWhere((c) => c.id == _currentChat!.id);
+    if (index != -1) {
+      final old = chats[index];
+      final updated = AIChat(
+        id: old.id,
+        workspaceId: old.workspaceId,
+        title: old.title,
+        messages: messages,
+        createdAt: old.createdAt,
+        updatedAt: DateTime.now(),
+      );
+      chats[index] = updated;
+      _currentChat = updated;
+      notifyListeners();
     }
-    return firstMessage;
+  }
+
+  void _appendDeltaToLastAIMessage(String sessionId, String chunk) {
+    final workspaceId = _currentWorkspace?.id ?? 'general';
+    final chats = _workspaceChats[workspaceId] ?? [];
+    final chatIndex = chats.indexWhere((c) => c.id == sessionId);
+    if (chatIndex == -1) return;
+
+    final chat = chats[chatIndex];
+    if (chat.messages.isEmpty) return;
+    final lastMsg = chat.messages.last;
+    if (lastMsg.sender != 'ai') return;
+
+    final updated = ChatMessage(
+      id: lastMsg.id,
+      sender: lastMsg.sender,
+      message: lastMsg.message + chunk,
+      timestamp: lastMsg.timestamp,
+      isError: lastMsg.isError,
+      thinking: lastMsg.thinking,
+      sources: lastMsg.sources,
+    );
+
+    final updatedMessages = [...chat.messages.sublist(0, chat.messages.length - 1), updated];
+    chats[chatIndex] = AIChat(
+      id: chat.id,
+      workspaceId: chat.workspaceId,
+      title: chat.title,
+      messages: updatedMessages,
+      createdAt: chat.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    if (_currentChat?.id == sessionId) {
+      _currentChat = chats[chatIndex];
+    }
+    notifyListeners();
+  }
+
+  void _appendThinkingToLastAIMessage(String sessionId, String thinkChunk) {
+    final workspaceId = _currentWorkspace?.id ?? 'general';
+    final chats = _workspaceChats[workspaceId] ?? [];
+    final chatIndex = chats.indexWhere((c) => c.id == sessionId);
+    if (chatIndex == -1) return;
+
+    final chat = chats[chatIndex];
+    if (chat.messages.isEmpty) return;
+    final lastMsg = chat.messages.last;
+    if (lastMsg.sender != 'ai') {
+      // Create the AI message placeholder with just the thinking token
+      if (!chat.messages.any((m) => m.sender == 'ai')) {
+        _setTyping(false);
+        _addMessageToCurrentChat(ChatMessage(
+          id: '${DateTime.now().millisecondsSinceEpoch}_ai',
+          sender: 'ai',
+          message: '',
+          timestamp: DateTime.now(),
+          thinking: thinkChunk,
+        ));
+        return;
+      }
+      return;
+    }
+
+    final updated = ChatMessage(
+      id: lastMsg.id,
+      sender: lastMsg.sender,
+      message: lastMsg.message,
+      timestamp: lastMsg.timestamp,
+      isError: lastMsg.isError,
+      thinking: (lastMsg.thinking ?? '') + thinkChunk,
+      sources: lastMsg.sources,
+    );
+
+    final updatedMessages = [...chat.messages.sublist(0, chat.messages.length - 1), updated];
+    chats[chatIndex] = AIChat(
+      id: chat.id,
+      workspaceId: chat.workspaceId,
+      title: chat.title,
+      messages: updatedMessages,
+      createdAt: chat.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    if (_currentChat?.id == sessionId) {
+      _currentChat = chats[chatIndex];
+    }
+    notifyListeners();
+  }
+
+  void _attachSourcesToLastAIMessage(
+      String sessionId, List<Map<String, dynamic>> sources) {
+    final workspaceId = _currentWorkspace?.id ?? 'general';
+    final chats = _workspaceChats[workspaceId] ?? [];
+    final chatIndex = chats.indexWhere((c) => c.id == sessionId);
+    if (chatIndex == -1) return;
+
+    final chat = chats[chatIndex];
+    if (chat.messages.isEmpty) return;
+
+    // Sources arrive before delta tokens — attach them to a placeholder if needed
+    final lastMsg = chat.messages.last;
+    if (lastMsg.sender != 'ai') return;
+
+    final updated = ChatMessage(
+      id: lastMsg.id,
+      sender: lastMsg.sender,
+      message: lastMsg.message,
+      timestamp: lastMsg.timestamp,
+      isError: lastMsg.isError,
+      thinking: lastMsg.thinking,
+      sources: sources,
+    );
+
+    final updatedMessages = [...chat.messages.sublist(0, chat.messages.length - 1), updated];
+    chats[chatIndex] = AIChat(
+      id: chat.id,
+      workspaceId: chat.workspaceId,
+      title: chat.title,
+      messages: updatedMessages,
+      createdAt: chat.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    if (_currentChat?.id == sessionId) {
+      _currentChat = chats[chatIndex];
+    }
+    notifyListeners();
   }
 
   // ============ FILE UPLOAD ============
 
   Future<void> uploadFileForAnalysis(String filePath, String fileName) async {
     _setLoading(true);
-
     try {
       _addMessageToCurrentChat(ChatMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -438,9 +547,7 @@ class AIProvider extends ChangeNotifier {
         message: '📎 Uploaded file: $fileName',
         timestamp: DateTime.now(),
       ));
-
       await Future.delayed(const Duration(seconds: 1));
-
       _addMessageToCurrentChat(ChatMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         sender: 'ai',
@@ -451,44 +558,41 @@ class AIProvider extends ChangeNotifier {
       _addErrorMessage('Error processing file: ${e.toString()}');
     } finally {
       _setLoading(false);
-      _saveChats();
     }
   }
 
-  // ============ HELPER METHODS ============
+  // ============ CLEAR ============
+
+  void clearCurrentChat() {
+    if (_currentChat == null) return;
+    final workspaceId = _currentWorkspace?.id ?? 'general';
+    final chats = _workspaceChats[workspaceId] ?? [];
+    final index = chats.indexWhere((c) => c.id == _currentChat!.id);
+    if (index != -1) {
+      final cleared = AIChat(
+        id: _currentChat!.id,
+        workspaceId: _currentChat!.workspaceId,
+        title: 'New Conversation',
+        messages: const [],
+        createdAt: _currentChat!.createdAt,
+        updatedAt: DateTime.now(),
+      );
+      chats[index] = cleared;
+      _currentChat = cleared;
+      notifyListeners();
+    }
+  }
+
+  // ============ HELPERS ============
 
   void _addErrorMessage(String message) {
-    final errorMessage = ChatMessage(
+    _addMessageToCurrentChat(ChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       sender: 'ai',
       message: message,
       timestamp: DateTime.now(),
       isError: true,
-    );
-    _addMessageToCurrentChat(errorMessage);
-  }
-
-  void clearCurrentChat() {
-    if (_currentChat != null) {
-      final workspaceId = _currentWorkspace?.id ?? 'general';
-      final chats = _workspaceChats[workspaceId] ?? [];
-      final index = chats.indexWhere((c) => c.id == _currentChat!.id);
-
-      if (index != -1) {
-        final clearedChat = AIChat(
-          id: _currentChat!.id,
-          workspaceId: _currentChat!.workspaceId,
-          title: 'New Conversation',
-          messages: [],
-          createdAt: _currentChat!.createdAt,
-          updatedAt: DateTime.now(),
-        );
-        chats[index] = clearedChat;
-        _currentChat = clearedChat;
-        _saveChats();
-        notifyListeners();
-      }
-    }
+    ));
   }
 
   void _setTyping(bool typing) {

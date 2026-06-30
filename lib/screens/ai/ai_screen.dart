@@ -55,6 +55,9 @@ class _AIScreenState extends State<AIScreen> {
       aiProvider.setWorkspaceContext(workspace);
     } else if (workspaceProvider.currentWorkspace != null) {
       aiProvider.setWorkspaceContext(workspaceProvider.currentWorkspace!);
+    } else {
+      // No workspace set — load sessions for the general space
+      await aiProvider.loadSessionsFromBackend();
     }
   }
 
@@ -228,6 +231,8 @@ class _AIScreenState extends State<AIScreen> {
                                   isUser: message.isUser,
                                   timestamp: message.timestamp,
                                   isError: message.isError,
+                                  thinking: message.thinking,
+                                  sources: message.sources,
                                   onCopy: () => _copyToClipboard(message.message),
                                 );
                               },
