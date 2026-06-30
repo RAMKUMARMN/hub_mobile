@@ -19,6 +19,7 @@ class AuthService {
     if (response['success'] == true) {
       final tokenData = response['data'];
       final String token = tokenData['access_token'];
+      final String refreshToken = tokenData['refresh_token'];
       
       // Fetch user profile info using the token we just received
       final profileResponse = await _client.request(
@@ -33,6 +34,7 @@ class AuthService {
         return {
           'success': true,
           'token': token,
+          'refresh_token': refreshToken,
           'user_id': userData['id'],
           'name': userData['full_name'],
           'email': userData['email'],
@@ -50,18 +52,49 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final response = await _client.request(
+    return await _client.request(
       method: 'POST',
       endpoint: '/auth/register',
       requiresAuth: false,
       body: {'full_name': name, 'email': email, 'password': password},
     );
-    
-    if (response['success'] == true) {
-      // Auto-login after successful registration to retrieve token and details
-      return await login(email: email, password: password);
-    }
-    return response;
+  }
+
+  /// Verify OTP
+  Future<Map<String, dynamic>> verifyOtp({
+    required String email,
+    required String otp,
+  }) async {
+    return await _client.request(
+      method: 'POST',
+      endpoint: '/auth/verify-otp',
+      requiresAuth: false,
+      body: {'email': email, 'otp': otp},
+    );
+  }
+
+  /// Resend OTP
+  Future<Map<String, dynamic>> resendOtp({
+    required String email,
+  }) async {
+    return await _client.request(
+      method: 'POST',
+      endpoint: '/auth/resend-otp',
+      requiresAuth: false,
+      body: {'email': email},
+    );
+  }
+
+  /// Refresh JWT tokens
+  Future<Map<String, dynamic>> refreshToken({
+    required String refreshToken,
+  }) async {
+    return await _client.request(
+      method: 'POST',
+      endpoint: '/auth/refresh',
+      requiresAuth: false,
+      body: {'refresh_token': refreshToken},
+    );
   }
 
   /// Google login
@@ -87,6 +120,7 @@ class AuthService {
       return {
         'success': true,
         'token': data['access_token'],
+        'refresh_token': data['refresh_token'],
         'user_id': data['user']['id'],
         'name': data['user']['name'],
         'email': data['user']['email'],
@@ -119,16 +153,29 @@ class AuthService {
     );
   }
 
-  /// Change password
-  Future<Map<String, dynamic>> changePassword({
-    required String currentPassword,
+  /// Initiate forgot password
+  Future<Map<String, dynamic>> forgotPassword({
+    required String email,
+  }) async {
+    return await _client.request(
+      method: 'POST',
+      endpoint: '/auth/forgot-password',
+      requiresAuth: false,
+      body: {'email': email},
+    );
+  }
+
+  /// Confirm reset password
+  Future<Map<String, dynamic>> resetPassword({
+    required String token,
     required String newPassword,
   }) async {
     return await _client.request(
       method: 'POST',
-      endpoint: '/auth/change-password',
+      endpoint: '/auth/reset-password',
+      requiresAuth: false,
       body: {
-        'current_password': currentPassword,
+        'token': token,
         'new_password': newPassword,
       },
     );

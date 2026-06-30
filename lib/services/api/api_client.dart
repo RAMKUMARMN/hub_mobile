@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 import 'package:logger/logger.dart';
+import '../navigation/navigation_service.dart';
 
 class ApiClient {
   final logger = Logger();
@@ -89,11 +90,110 @@ class ApiClient {
           return {'success': false, 'error': 'Unsupported method: $method'};
       }
 
+      // Check if unauthorized and try to auto-refresh
+      if (response.statusCode == 401 && requiresAuth && endpoint != '/auth/refresh') {
+        logger.i('🔄 Token expired (401). Attempting automatic token refresh...');
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          logger.i('✅ Token refreshed successfully. Retrying original request...');
+          final retryHeaders = await getHeaders(includeAuth: true);
+          if (customHeaders != null) {
+            retryHeaders.addAll(customHeaders);
+          }
+
+          switch (method.toUpperCase()) {
+            case 'GET':
+              response = await http.get(url, headers: retryHeaders);
+              break;
+            case 'POST':
+              response = await http.post(
+                url,
+                headers: retryHeaders,
+                body: body != null ? jsonEncode(body) : null,
+              );
+              break;
+            case 'PUT':
+              response = await http.put(
+                url,
+                headers: retryHeaders,
+                body: body != null ? jsonEncode(body) : null,
+              );
+              break;
+            case 'PATCH':
+              response = await http.patch(
+                url,
+                headers: retryHeaders,
+                body: body != null ? jsonEncode(body) : null,
+              );
+              break;
+            case 'DELETE':
+              response = await http.delete(url, headers: retryHeaders);
+              break;
+          }
+        } else {
+          logger.w('🔴 Token refresh failed. Forcing logout...');
+          await _forceLogout();
+          return {
+            'success': false,
+            'error': 'Session expired. Please log in again.',
+            'statusCode': 401,
+          };
+        }
+      }
+
       return _handleResponse(response);
       
     } catch (e) {
       return {'success': false, 'error': 'Connection error: $e'};
     }
+  }
+
+  /// Attempt to refresh token using refresh_token
+  Future<bool> _attemptTokenRefresh() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final refreshToken = prefs.getString('auth_refresh_token');
+      if (refreshToken == null || refreshToken.isEmpty) {
+        return false;
+      }
+
+      final refreshUrl = Uri.parse('$baseUrl/auth/refresh');
+      final response = await http.post(
+        refreshUrl,
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: jsonEncode({'refresh_token': refreshToken}),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        final String newAccessToken = data['access_token'];
+        final String newRefreshToken = data['refresh_token'];
+
+        await prefs.setString('auth_token', newAccessToken);
+        await prefs.setString('auth_refresh_token', newRefreshToken);
+        return true;
+      }
+    } catch (e) {
+      logger.e('Error during token refresh: $e');
+    }
+    return false;
+  }
+
+  /// Reset session credentials locally and navigate to Login
+  Future<void> _forceLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('auth_refresh_token');
+    await prefs.remove('user_id');
+    await prefs.remove('user_name');
+    await prefs.remove('user_email');
+    await prefs.remove('profile_image_url');
+    
+    // Redirect to login using NavigationService
+    NavigationService.navigateAndClearStack('/login');
   }
 
   /// Handle all responses uniformly
