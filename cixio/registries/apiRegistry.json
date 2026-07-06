@@ -1,0 +1,20 @@
+[
+  {
+    "name": "device-api",
+    "description": "Provides access to device information",
+    "status": "planned",
+    "version": "v1"
+  },
+  {
+    "name": "alerts-api",
+    "description": "Provides access to system alerts",
+    "status": "planned",
+    "version": "v1"
+  },
+  {
+    "name": "events-api",
+    "description": "Creates and manages events",
+    "status": "planned",
+    "version": "v1"
+  }
+]

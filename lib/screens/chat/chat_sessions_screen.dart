@@ -25,52 +25,97 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
   }
 
   Future<void> _loadSessions() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
       final response = await ApiService().dio.get('/chat/sessions');
+
+      final data = response.data;
+
+      if (data is! List) {
+        throw Exception('Invalid response format');
+      }
+
+      final sessions = data
+          .map(
+            (s) => ChatSession.fromJson(
+              s as Map<String, dynamic>,
+            ),
+          )
+          .toList();
+
+      if (!mounted) return;
+
       setState(() {
-        _sessions = (response.data as List)
-            .map((s) => ChatSession.fromJson(s as Map<String, dynamic>))
-            .toList();
+        _sessions = sessions;
         _isLoading = false;
         _error = null;
       });
     } on DioException catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _isLoading = false;
-        _error = 'Failed to load chats: ${e.message}';
+        _error = e.message ?? 'Unable to load conversations.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _error = 'Something went wrong. Please try again.';
       });
     }
   }
 
   Future<void> _newSession() async {
-    setState(() { _isCreating = true; });
+    setState(() {
+      _isCreating = true;
+    });
     try {
       final response = await ApiService().dio.post(
         '/chat/sessions',
         data: {'title': 'New Chat'},
       );
-      final session = ChatSession.fromJson(response.data as Map<String, dynamic>);
+      final session =
+          ChatSession.fromJson(response.data as Map<String, dynamic>);
       if (mounted) context.push('/chat/${session.id}');
       await _loadSessions();
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create chat: ${e.message ?? "Unknown error"}')),
+          SnackBar(
+              content: Text(
+                  'Failed to create chat: ${e.message ?? "Unknown error"}')),
         );
       }
     } finally {
-      if (mounted) setState(() { _isCreating = false; });
+      if (mounted) {
+        setState(() {
+          _isCreating = false;
+        });
+      }
     }
   }
 
   Future<void> _deleteSession(String id) async {
+    if (id.isEmpty) return;
+
     try {
       await ApiService().dio.delete('/chat/sessions/$id');
-      setState(() { _sessions.removeWhere((s) => s.id == id); });
+      setState(() {
+        _sessions.removeWhere((s) => s.id == id);
+      });
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: ${e.message ?? "Unknown error"}')),
+          SnackBar(
+              content: Text('Delete failed: ${e.message ?? "Unknown error"}')),
         );
       }
     }
@@ -88,7 +133,8 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
                     children: [
                       Text(_error!, style: const TextStyle(color: Colors.red)),
                       const SizedBox(height: 16),
-                      FilledButton(onPressed: _loadSessions, child: const Text('Retry')),
+                      FilledButton(
+                          onPressed: _loadSessions, child: const Text('Retry')),
                     ],
                   ),
                 )
@@ -97,7 +143,8 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                          const Icon(Icons.chat_bubble_outline,
+                              size: 64, color: Colors.grey),
                           const SizedBox(height: 16),
                           const Text('No conversations yet'),
                           const SizedBox(height: 16),
@@ -121,18 +168,65 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: Colors.blue.shade100,
-                                child: const Icon(Icons.chat_bubble_outline, color: Colors.blue),
+                                child: const Icon(Icons.chat_bubble_outline,
+                                    color: Colors.blue),
                               ),
-                              title: Text(session.title),
+                              title: Text(
+                                session.title.isNotEmpty
+                                    ? session.title
+                                    : 'Untitled Chat',
+                              ),
                               subtitle: Text(
                                 _formatDate(session.updatedAt),
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 12),
                               ),
                               trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _deleteSession(session.id),
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.red),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Delete chat?'),
+                                      content: const Text(
+                                        'This action cannot be undone.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    _deleteSession(session.id);
+                                  }
+                                },
                               ),
-                              onTap: () => context.push('/chat/${session.id}'),
+                              onTap: () {
+                                if (session.id.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Invalid chat session.',
+                                      ),
+                                    ),
+                                  );
+
+                                  return;
+                                }
+
+                                context.push('/chat/${session.id}');
+                              },
                             ),
                           );
                         },
@@ -145,7 +239,8 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
               )
             : const Icon(Icons.add),
         label: const Text('New Chat'),

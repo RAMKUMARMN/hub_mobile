@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart'
+    as http; // Needed for automated background trigger
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart'; // Fetch device push addresses
+import '../../config/app_config.dart'; // Clean pipeline endpoints
 import '../../theme/cixio_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -30,19 +34,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _isLoading = true; _error = null; });
+
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() {
+        _error = 'Phone number is required for OTP authentication.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
+      // 1. Fetch the phone's hardware FCM push token
+      String? deviceToken = await NotificationService.getDeviceToken();
+
+      // 2. Commit the registration profile to the backend via service account
       await AuthService().register(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         fullName: _nameController.text.trim(),
-        phone: _phoneController.text.isEmpty ? null : _phoneController.text.trim(),
+        phone: phone,
+        deviceToken: deviceToken,
       );
-      if (mounted) context.go('/chat');
+
+      // 3. Command the engine to queue and fire the background OTP job
+      // 3. Command the engine to queue and fire the background OTP job
+      print("✅ About to trigger OTP for $phone");
+      await _triggerOTP(phone);
+      print("✅ OTP triggered, about to navigate");
+
+      // 4. Smoothly route the user over to the 6-digit input verification view
+      if (mounted) {
+        print("✅ Widget still mounted, navigating to /verify-otp/$phone");
+        context.go('/verify-otp/$phone');
+        print("✅ Navigation call completed");
+      } else {
+        print("❌ Widget no longer mounted — navigation skipped");
+      }
     } catch (e) {
-      setState(() { _error = 'Registration failed. Email may already be in use.'; });
+      setState(() {
+        _error = 'Registration failed: $e';
+      });
     } finally {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Tells FastAPI to queue a push task message into RabbitMQ
+  Future<void> _triggerOTP(String phoneNumber) async {
+    final String otpUrl =
+        "${AppConfig.apiUrl}/auth/login/request-otp?phone=$phoneNumber";
+    try {
+      await http.post(Uri.parse(otpUrl));
+    } catch (e) {
+      print("Warning: Failed to auto-trigger notification dispatch script: $e");
     }
   }
 
@@ -72,7 +125,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -107,40 +159,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           const SizedBox(height: 24),
                           TextFormField(
                             controller: _nameController,
+                            textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
                               labelText: 'Full Name',
                               prefixIcon: Icon(Icons.person_outlined),
                             ),
-                            validator: (v) => v != null && v.length >= 2 ? null : 'Enter your name',
+                            validator: (v) => v != null && v.trim().length >= 2
+                                ? null
+                                : 'Enter your name',
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
                               labelText: 'Email',
                               prefixIcon: Icon(Icons.email_outlined),
                             ),
-                            validator: (v) => v != null && v.contains('@') ? null : 'Enter a valid email',
+                            validator: (v) => v != null && v.contains('@')
+                                ? null
+                                : 'Enter a valid email',
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
-                              labelText: 'Phone (optional)',
+                              labelText: 'Phone Number',
                               prefixIcon: Icon(Icons.phone_outlined),
                             ),
+                            validator: (v) => v != null && v.trim().isNotEmpty
+                                ? null
+                                : 'Phone required for OTP verification',
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: true,
+                            textInputAction: TextInputAction.done,
                             decoration: const InputDecoration(
                               labelText: 'Password',
                               prefixIcon: Icon(Icons.lock_outlined),
                             ),
-                            validator: (v) => v != null && v.length >= 8 ? null : 'Min 8 characters',
+                            validator: (v) => v != null && v.length >= 8
+                                ? null
+                                : 'Min 8 characters',
                           ),
                           if (_error != null) ...[
                             const SizedBox(height: 12),
@@ -150,7 +215,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 color: Colors.red.shade50,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Text(_error!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                              child: Text(_error!,
+                                  style: TextStyle(
+                                      color: Colors.red.shade700,
+                                      fontSize: 13)),
                             ),
                           ],
                           const SizedBox(height: 24),
@@ -158,10 +226,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onPressed: _isLoading ? null : _register,
                             child: _isLoading
                                 ? const SizedBox(
-                                    height: 20, width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
                                   )
-                                : const Text('Create Account'),
+                                : const Text('Register & Verify Device'),
                           ),
                           const SizedBox(height: 12),
                           Center(

@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "smarthub": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["dist/server.js"],
+      "cwd": "."
+    }
+  }
+}
