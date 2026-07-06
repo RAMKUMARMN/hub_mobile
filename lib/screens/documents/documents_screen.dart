@@ -207,22 +207,16 @@ await _loadDocuments();
                               title: Text(doc.filename),
                               subtitle: Text(
                                 doc.processed
-                                    ? '${doc.chunkCount} chunks • ${_formatSize(doc.fileSize)}'
+                                    ? 'Processed • ${_formatSize(doc.fileSize)}'
                                     : 'Processing...',
                                 style: TextStyle(
                                   color: doc.processed ? Colors.green.shade700 : Colors.orange,
                                 ),
                               ),
-                              trailing: doc.processed
-                                  ? IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                      onPressed: () => _deleteDocument(doc.id),
-                                    )
-                                  : const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                onPressed: () => _deleteDocument(doc.id),
+                              ),
                             ),
                           );
                         },
