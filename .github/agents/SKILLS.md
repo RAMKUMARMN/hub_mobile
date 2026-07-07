@@ -10,6 +10,23 @@ This document describes the skills, inputs/outputs, tools, safety constraints, a
 **Purpose**
 - Provide a compact, discoverable list of the agent's actionable capabilities so maintainers can quickly know what to ask and what to expect.
 
+## Using the Agents
+
+All agents are auto-discovered — type `/` in the OpenCode/Copilot chat to see the full list.
+
+| To do this... | Type this command |
+|---|---|
+| Create/update a screen | `@mobile-ui Create a profile screen...` |
+| Add Riverpod state | `@mobile-state Create a provider for...` |
+| Integrate an API | `@mobile-data Add a Dio service for...` |
+| Set up push notifications | `@mobile-push Configure FCM for...` |
+| Create a CI workflow | `@mobile-ci Create a CI pipeline...` |
+| Audit platform adaptation | `@mobile-platform-audit Audit all screens...` |
+| Check memory/performance | `@mobile-lifecycle Check for dispose leaks...` |
+| Detect layout overflows | `@mobile-qa Scan for RenderFlex overflows...` |
+| Review code | `@mobile-code-reviewer Review this file...` |
+| Multi-domain task | `@mobile-agent I need to add a screen...` (coordinator routes it) |
+
 **Quick summary**
 - **Primary domain:** Flutter/Dart cross-platform mobile app (iOS + Android), screens, services, state management, push notifications.
 - **Primary outputs:** repository patches/diffs, GitHub Actions workflow files, CI job templates, README snippets, and PR-ready descriptions.
@@ -116,13 +133,15 @@ This document describes the skills, inputs/outputs, tools, safety constraints, a
 The coordinator (`mobile-agent`) routes to single-task agents:
 
 | Agent | Responsibility |
-|---|---|
+|---|---|---|
 | `mobile-ui` | Flutter screens, widgets, layouts |
 | `mobile-state` | Riverpod providers and state management |
 | `mobile-data` | API service, Hive caching, data models |
 | `mobile-push` | FCM push notifications and deep links |
 | `mobile-ci` | CI workflows for Flutter builds |
-| `mobile-planner` | Implementation planning |
+| `mobile-platform-audit` | Platform adaptation & accessibility audit |
+| `mobile-lifecycle` | Memory leaks & performance bottlenecks |
+| `mobile-qa` | Layout overflows & unreachable UI elements |
 | `mobile-code-reviewer` | Code review before merge |
 
 ## How progress is reported
@@ -138,4 +157,4 @@ The coordinator (`mobile-agent`) routes to single-task agents:
 ## Maintenance notes
 - Keep `SKILLS.md` aligned with individual agent files and prompts
 - When adding a new skill, create `/.agents/skills/<name>/SKILL.md` and update this catalog
-- When adding a new single-task agent, create the agent file, prompt file, register it in the coordinator's handoffs, and add to `opencode.jsonc`
+- When adding a new single-task agent, create the agent file, prompt file, register it in the coordinator's handoffs, and update this file

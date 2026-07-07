@@ -14,7 +14,9 @@ This coordinator does NOT implement tasks directly. It identifies the task type 
 | API service, Hive caching, data models | `mobile-data` | `mobile-data-prompt.prompt.md` |
 | FCM push notifications, deep links | `mobile-push` | `mobile-push-prompt.prompt.md` |
 | CI workflows for Flutter builds | `mobile-ci` | `mobile-ci-prompt.prompt.md` |
-| Generate an implementation plan | `mobile-planner` | `mobile-planner-prompt.prompt.md` |
+| Audit UI for platform adaptation, accessibility, navigation correctness | `mobile-platform-audit` | `mobile-platform-audit-prompt.prompt.md` |
+| Analyze memory leaks, lifecycle disposal, build() performance | `mobile-lifecycle` | `mobile-lifecycle-prompt.prompt.md` |
+| Detect layout overflows, unconstrained widgets, scrollability issues | `mobile-qa` | `mobile-qa-prompt.prompt.md` |
 | Review code before merge | `mobile-code-reviewer` | `mobile-code-reviewer-prompt.prompt.md` |
 
 If the request spans multiple domains, ask the user to break it into single-task prompts.

@@ -24,7 +24,7 @@ This agent does NOT handle:
 - Riverpod providers or state management → use `mobile-state`
 - Push notification configuration (FCM setup) → use `mobile-push`
 - CI workflow YAML → use `mobile-ci`
-- Planning or review → use `mobile-planner` or `mobile-code-reviewer`
+- Review → use `mobile-code-reviewer`
 
 ## Inputs
 

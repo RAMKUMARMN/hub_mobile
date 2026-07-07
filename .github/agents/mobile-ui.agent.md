@@ -23,7 +23,7 @@ This agent does NOT handle:
 - Dio API service, Hive caching, or data models → use `mobile-data`
 - Push notifications or deep link handling → use `mobile-push`
 - CI workflow YAML → use `mobile-ci`
-- Planning or review → use `mobile-planner` or `mobile-code-reviewer`
+- Review → use `mobile-code-reviewer`
 
 ## Inputs
 

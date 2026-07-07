@@ -48,7 +48,9 @@ This repository uses the following agents:
 | `mobile-data` | `.github/agents/mobile-data.agent.md` | API service, Hive caching, data models |
 | `mobile-push` | `.github/agents/mobile-push.agent.md` | FCM push notifications and deep links |
 | `mobile-ci` | `.github/agents/mobile-ci.agent.md` | CI workflows for Flutter builds |
-| `mobile-planner` | `.github/agents/mobile-planner.agent.md` | Implementation planning |
+| `mobile-platform-audit` | `.github/agents/mobile-platform-audit.agent.md` | Platform adaptation & accessibility audit |
+| `mobile-lifecycle` | `.github/agents/mobile-lifecycle.agent.md` | Memory leaks & performance bottlenecks |
+| `mobile-qa` | `.github/agents/mobile-qa.agent.md` | Layout overflows & unreachable UI elements |
 | `mobile-code-reviewer` | `.github/agents/mobile-code-reviewer.agent.md` | Code review before merge |
 
 Prompts are in `.github/prompts/` and skills in `.agents/skills/`.

@@ -23,7 +23,7 @@ This agent does NOT handle:
 - API service or data models → use `mobile-data`
 - Push notifications → use `mobile-push`
 - CI workflow YAML → use `mobile-ci`
-- Planning or review → use `mobile-planner` or `mobile-code-reviewer`
+- Review → use `mobile-code-reviewer`
 
 ## Inputs
 

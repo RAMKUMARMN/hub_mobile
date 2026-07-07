@@ -25,7 +25,7 @@ This agent does NOT handle:
 - Riverpod providers → use `mobile-state`
 - API service or data models → use `mobile-data`
 - Push notifications → use `mobile-push`
-- Planning or review → use `mobile-planner` or `mobile-code-reviewer`
+- Review → use `mobile-code-reviewer`
 
 ## Inputs
 
