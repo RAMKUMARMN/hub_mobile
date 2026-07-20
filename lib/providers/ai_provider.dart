@@ -1,4 +1,5 @@
 // lib/providers/ai_provider.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -6,9 +7,17 @@ import '../models/chat/ai_chat.dart';
 import '../models/chat/chat_message.dart';
 import '../models/workspace/workspace.dart';
 import '../services/ai/ai_services.dart';
+import '../services/api/document_service.dart';
+
+// Maps local chat ID -> backend session UUID
+final Map<String, String> _backendSessionIds = {};
+
+// Tracks which local chat IDs have at least one uploaded document (enables RAG)
+final Set<String> _sessionsWithDocuments = {};
 
 class AIProvider extends ChangeNotifier {
   final AIService _aiService = AIService();
+  final DocumentService _documentService = DocumentService();
 
   // ✅ Chats organized by workspace ID
   Map<String, List<AIChat>> _workspaceChats = {};
@@ -222,8 +231,32 @@ class AIProvider extends ChangeNotifier {
 
   // ============ SEND MESSAGE ============
 
+  /// Non-streaming send — delegates to the streaming path (old /ai/chat removed).
   Future<void> sendMessage(String message, {String? workspaceId}) async {
+    await sendMessageStream(
+      message: message,
+      onChunk: (_) {}, // caller doesn't need individual chunks
+      workspaceId: workspaceId,
+    );
+  }
+
+  // ============ STREAMING ============
+
+  Future<void> sendMessageStream({
+    required String message,
+    required void Function(String chunk) onChunk,
+    String? workspaceId,
+    String? chatId,
+  }) async {
     if (message.trim().isEmpty) return;
+
+    // Ensure we have a current chat
+    if (_currentChat == null) {
+      _createNewChat();
+    }
+
+    final String chatIdToUse = _currentChat!.id;
+    debugPrint('📝 Using chat ID: $chatIdToUse');
 
     _addMessageToCurrentChat(ChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -231,102 +264,80 @@ class AIProvider extends ChangeNotifier {
       message: message,
       timestamp: DateTime.now(),
     ));
+
+    String? aiMessageId;
+    bool aiMessageCreated = false;
+    String thinkingBuffer = '';
+
     _setTyping(true);
 
     try {
-      final response = await _aiService.sendMessage(
-        message,
-        workspaceId: workspaceId ?? _currentWorkspace?.id,
-      );
+      // --- Resolve or create a backend session UUID ---
+      String? backendSessionId = _backendSessionIds[chatIdToUse];
+      if (backendSessionId == null) {
+        debugPrint('🆕 Creating backend session for local chat: $chatIdToUse');
+        backendSessionId = await _aiService.createSession(
+          title: _currentChat?.title ?? 'New Chat',
+        );
+        _backendSessionIds[chatIdToUse] = backendSessionId;
+        debugPrint('✅ Backend session created: $backendSessionId');
+      }
 
-      _addMessageToCurrentChat(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sender: 'ai',
-        message: response,
-        timestamp: DateTime.now(),
-      ));
-      _setTyping(false);
-    } catch (e) {
-      _addErrorMessage('Sorry, I encountered an error. Please try again.');
-      _setTyping(false);
-    }
-  }
+      // Thinking tokens accumulator — prepended to the AI bubble as a block
+      void handleThinking(String chunk) {
+        thinkingBuffer += chunk;
+        debugPrint('🧠 Thinking: $chunk');
+      }
 
-  // ============ STREAMING ============
-
- Future<void> sendMessageStream({
-  required String message,
-  required void Function(String chunk) onChunk,
-  String? workspaceId,
-  String? chatId,
-}) async {
-  if (message.trim().isEmpty) return;
-
-  // ✅ Ensure we have a current chat
-  if (_currentChat == null) {
-    _createNewChat();
-  }
-
-  // ✅ Store the chat ID before adding messages
-  final String chatIdToUse = _currentChat!.id;
-  debugPrint('📝 Using chat ID: $chatIdToUse');
-
-  _addMessageToCurrentChat(ChatMessage(
-    id: DateTime.now().millisecondsSinceEpoch.toString(),
-    sender: 'user',
-    message: message,
-    timestamp: DateTime.now(),
-  ));
-
-  // ✅ Don't create/add the AI message yet — wait for the first chunk
-  String? aiMessageId;
-  bool aiMessageCreated = false;
-
-  _setTyping(true);
-
-  try {
-    await _aiService.sendMessageStream(
-      message: message,
-      onChunk: (chunk) {
-        debugPrint('📥 Received chunk: ${chunk.length} characters');
+      // Answer (delta) tokens
+      void handleDelta(String chunk) {
+        debugPrint('📥 Delta chunk: ${chunk.length} chars');
 
         if (!aiMessageCreated) {
-          // ✅ First chunk arrived — create the bubble now, turn off typing
           aiMessageCreated = true;
           aiMessageId = DateTime.now().millisecondsSinceEpoch.toString();
           _setTyping(false);
 
+          // If we have thinking tokens, prepend them visually
+          final initialContent = thinkingBuffer.isNotEmpty
+              ? '💭 *Thinking…*\n$thinkingBuffer\n\n---\n$chunk'
+              : chunk;
+
           _addMessageToCurrentChat(ChatMessage(
             id: aiMessageId!,
             sender: 'ai',
-            message: chunk,
+            message: initialContent,
             timestamp: DateTime.now(),
           ));
         } else {
-          // ✅ Subsequent chunks — append to the existing bubble
           _updateLastMessageWithId(chatIdToUse, chunk);
         }
 
         onChunk(chunk);
-      },
-      workspaceId: workspaceId ?? _currentWorkspace?.id,
-      chatId: null,
-    );
+      }
 
-    // ✅ Edge case: stream completed but produced zero chunks
-    if (!aiMessageCreated) {
+      await _aiService.sendMessageStream(
+        sessionId: backendSessionId,
+        message: message,
+        onDelta: handleDelta,
+        onThinking: handleThinking,
+        useRag: currentChatHasDocuments, // ← true when session has uploaded docs
+        thinkingMode: false,
+      );
+
+      if (!aiMessageCreated) {
+        _setTyping(false);
+        _addErrorMessage('No response received. Please try again.');
+      }
+
       _setTyping(false);
-      _addErrorMessage('No response received. Please try again.');
+      _saveChats();
+    } catch (e) {
+      debugPrint('❌ Stream error: $e');
+      _setTyping(false);
+      _addErrorMessage('Sorry, I encountered an error. Please try again.');
     }
-
-    _setTyping(false);
-    _saveChats();
-  } catch (e) {
-    debugPrint('❌ Stream error: $e');
-    _setTyping(false);
-    _addErrorMessage('Sorry, I encountered an error. Please try again.');
   }
-}
 
   // ✅ SINGLE METHOD to update last message (merged both versions)
   void _updateLastMessageWithId(String chatId, String chunk) {
@@ -428,27 +439,64 @@ class AIProvider extends ChangeNotifier {
 
   // ============ FILE UPLOAD ============
 
+  /// Whether the current chat has uploaded documents — enables RAG.
+  bool get currentChatHasDocuments =>
+      _sessionsWithDocuments.contains(_currentChat?.id);
+
+  /// Upload a file to the backend, scoped to the current chat session for RAG.
+  /// On success, marks the session as RAG-enabled so future messages
+  /// automatically set use_rag=true.
   Future<void> uploadFileForAnalysis(String filePath, String fileName) async {
     _setLoading(true);
 
     try {
+      // Show user message immediately
       _addMessageToCurrentChat(ChatMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         sender: 'user',
-        message: '📎 Uploaded file: $fileName',
+        message: '📎 Uploading: $fileName',
         timestamp: DateTime.now(),
       ));
 
-      await Future.delayed(const Duration(seconds: 1));
+      // Ensure we have a backend session
+      final chatId = _currentChat!.id;
+      String? backendSessionId = _backendSessionIds[chatId];
+      if (backendSessionId == null) {
+        backendSessionId = await _aiService.createSession(
+          title: _currentChat?.title ?? 'New Chat',
+        );
+        _backendSessionIds[chatId] = backendSessionId;
+        debugPrint('✅ Created session for upload: $backendSessionId');
+      }
 
-      _addMessageToCurrentChat(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sender: 'ai',
-        message: '📄 I\'ve received "$fileName". What would you like me to help you with?',
-        timestamp: DateTime.now(),
-      ));
+      // Upload to backend scoped to this session
+      final result = await _documentService.uploadForSession(
+        file: File(filePath),
+        sessionId: backendSessionId,
+        customFileName: fileName,
+      );
+
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>;
+        final processed = data['processed'] as bool? ?? false;
+
+        // Mark this session as having documents (enables RAG)
+        _sessionsWithDocuments.add(chatId);
+
+        _addMessageToCurrentChat(ChatMessage(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          sender: 'ai',
+          message: processed
+              ? '✅ "$fileName" uploaded and indexed. RAG is now active — I can answer questions based on this document.'
+              : '⏳ "$fileName" uploaded successfully. It\'s being indexed in the background. RAG will be active shortly — ask me anything about it!',
+          timestamp: DateTime.now(),
+        ));
+      } else {
+        _addErrorMessage('Upload failed: ${result['error'] ?? 'Unknown error'}');
+      }
     } catch (e) {
-      _addErrorMessage('Error processing file: ${e.toString()}');
+      debugPrint('❌ Upload error: $e');
+      _addErrorMessage('Error uploading file: ${e.toString()}');
     } finally {
       _setLoading(false);
       _saveChats();

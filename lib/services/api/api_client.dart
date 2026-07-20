@@ -219,7 +219,98 @@ class ApiClient {
     }
   }
 
-  /// ✅ FIXED: Streaming request for AI chat with proper NDJSON parsing
+  /// ✅ SSE streaming for /chat/sessions/{id}/messages
+  /// Parses backend Server-Sent Events format:
+  ///   data: {"delta": "..."}
+  ///   data: {"thinking": "..."}
+  ///   data: {"sources": [...]}
+  ///   data: {"status": "..."}
+  ///   data: [DONE]
+  Future<void> streamSseRequest({
+    required String endpoint,
+    required Map<String, dynamic> body,
+    required void Function(String chunk) onDelta,
+    void Function(String chunk)? onThinking,
+    void Function(List<dynamic> sources)? onSources,
+    void Function(String status)? onStatus,
+    bool requiresAuth = true,
+  }) async {
+    try {
+      logger.i('📤 SSE stream request to: $endpoint');
+
+      final request = http.Request(
+        'POST',
+        Uri.parse('$baseUrl$endpoint'),
+      );
+
+      final headers = await getHeaders(includeAuth: requiresAuth);
+      // SSE endpoint expects Accept: text/event-stream
+      headers['Accept'] = 'text/event-stream';
+      request.headers.addAll(headers);
+      request.body = jsonEncode(body);
+
+      final response = await request.send();
+      logger.i('📥 SSE response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final stream = response.stream.transform(utf8.decoder);
+        String buffer = '';
+
+        await for (final part in stream) {
+          buffer += part;
+
+          // SSE lines are separated by \n or \n\n; process all complete lines
+          while (buffer.contains('\n')) {
+            final newlineIndex = buffer.indexOf('\n');
+            final raw = buffer.substring(0, newlineIndex).trim();
+            buffer = buffer.substring(newlineIndex + 1);
+
+            if (raw.isEmpty) continue; // blank separator line
+
+            // Strip "data: " prefix if present
+            final line = raw.startsWith('data: ') ? raw.substring(6).trim() : raw;
+
+            if (line.isEmpty) continue;
+
+            // Check for stream terminator
+            if (line == '[DONE]') {
+              logger.i('✅ SSE stream complete');
+              return;
+            }
+
+            try {
+              final data = jsonDecode(line) as Map<String, dynamic>;
+
+              if (data.containsKey('delta')) {
+                final text = data['delta']?.toString() ?? '';
+                if (text.isNotEmpty) onDelta(text);
+              } else if (data.containsKey('thinking')) {
+                final text = data['thinking']?.toString() ?? '';
+                if (text.isNotEmpty) onThinking?.call(text);
+              } else if (data.containsKey('sources')) {
+                final sources = data['sources'];
+                if (sources is List) onSources?.call(sources);
+              } else if (data.containsKey('status')) {
+                final status = data['status']?.toString() ?? '';
+                if (status.isNotEmpty) onStatus?.call(status);
+              }
+            } catch (e) {
+              logger.w('⚠️ Skipped malformed SSE line: $line');
+            }
+          }
+        }
+      } else {
+        final errorBody = await response.stream.bytesToString();
+        logger.e('❌ SSE response error body: $errorBody');
+        onDelta('Error: Server returned ${response.statusCode}');
+      }
+    } catch (e) {
+      logger.e('❌ SSE stream error: $e');
+      onDelta('Error: ${e.toString()}');
+    }
+  }
+
+  /// Legacy NDJSON streaming (kept for backward compatibility)
   Future<void> streamRequest({
     required String endpoint,
     required Map<String, dynamic> body,

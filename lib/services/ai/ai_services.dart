@@ -1,96 +1,97 @@
 // lib/services/ai/ai_services.dart
-import '../api/index.dart';
 import '../api/api_client.dart';
 
 class AIService {
   final ApiClient _client = ApiClient();
 
-  /// Send a message to AI with streaming
-  // lib/services/ai/ai_services.dart
-
-Future<void> sendMessageStream({
-  required String message,
-  required void Function(String chunk) onChunk,
-  String? workspaceId,
-  String? chatId,
-}) async {
-  final body = {
-    'prompt': message,
-    if (workspaceId != null) 'workspace_id': workspaceId,
-    // ✅ Only include chat_id if it's not null and looks like a UUID
-    if (chatId != null && chatId.isNotEmpty) 'chat_id': chatId,
-  };
-  
-  await _client.streamRequest(
-    endpoint: '/ai/chat/stream',
-    body: body,
-    onChunk: onChunk,
-  );
-}
-
-  /// Send a message to AI (non-streaming)
-  Future<String> sendMessage(String message, {String? workspaceId}) async {
+  /// Create a new backend chat session and return the session ID (UUID string).
+  Future<String> createSession({String title = 'New Chat'}) async {
     final response = await _client.request(
       method: 'POST',
-      endpoint: '/ai/chat',
+      endpoint: '/chat/sessions',
+      body: {'title': title},
+    );
+
+    if (response['success'] == true) {
+      final data = response['data'];
+      final id = data['id']?.toString();
+      if (id != null && id.isNotEmpty) return id;
+    }
+    throw Exception('Failed to create chat session: ${response['error']}');
+  }
+
+  /// Send a message to a backend session and stream the response.
+  ///
+  /// SSE events from the backend:
+  ///   {"sources": [...]}                — RAG source citations (optional, first)
+  ///   {"thinking": "..."}              — DeepSeek reasoning token
+  ///   {"delta": "..."}                 — Answer token
+  ///   {"status": "..."}                — Status update (optional)
+  ///   data: [DONE]                     — Stream complete
+  ///
+  /// [onDelta]    — called for each answer token (the main content)
+  /// [onThinking] — called for each reasoning token (optional)
+  /// [onSources]  — called once with RAG source list (optional)
+  /// [onStatus]   — called for status/progress updates (optional)
+  Future<void> sendMessageStream({
+    required String sessionId,
+    required String message,
+    required void Function(String chunk) onDelta,
+    void Function(String chunk)? onThinking,
+    void Function(List<dynamic> sources)? onSources,
+    void Function(String status)? onStatus,
+    bool useRag = false,
+    bool thinkingMode = false,
+  }) async {
+    await _client.streamSseRequest(
+      endpoint: '/chat/sessions/$sessionId/messages',
       body: {
-        'prompt': message,
-        if (workspaceId != null) 'workspace_id': workspaceId,
+        'content': message,
+        'use_rag': useRag,
+        'thinking_mode': thinkingMode,
       },
+      onDelta: onDelta,
+      onThinking: onThinking,
+      onSources: onSources,
+      onStatus: onStatus,
     );
-    
-    if (response['success'] == true) {
-      return response['data']['response'] ?? 'No response from AI';
-    }
-    return response['error'] ?? 'Failed to get response';
   }
-  
-  /// Generate a title from the first message
-  Future<String> generateTitle(String firstMessage) async {
-    // Simple title generation - you can enhance this
-    if (firstMessage.length > 30) {
-      return '${firstMessage.substring(0, 27)}...';
-    }
-    return firstMessage;
-  }
-  
-  /// Get daily insight
-  Future<Map<String, dynamic>> getDailyInsight() async {
+
+  /// List all chat sessions for the authenticated user.
+  Future<List<Map<String, dynamic>>> listSessions() async {
     final response = await _client.request(
       method: 'GET',
-      endpoint: '/ai/daily-insight',
+      endpoint: '/chat/sessions',
     );
-    
     if (response['success'] == true) {
-      return response['data'];
+      final data = response['data'];
+      if (data is List) {
+        return data.cast<Map<String, dynamic>>();
+      }
     }
-    return {'error': response['error'] ?? 'Failed to get insight'};
+    return [];
   }
-  
-  /// Get weekly report
-  Future<Map<String, dynamic>> getWeeklyReport() async {
+
+  /// Delete a chat session by its UUID.
+  Future<void> deleteSession(String sessionId) async {
+    await _client.request(
+      method: 'DELETE',
+      endpoint: '/chat/sessions/$sessionId',
+    );
+  }
+
+  /// Get message history for a session.
+  Future<List<Map<String, dynamic>>> getMessages(String sessionId) async {
     final response = await _client.request(
       method: 'GET',
-      endpoint: '/ai/weekly-report',
+      endpoint: '/chat/sessions/$sessionId/messages',
     );
-    
     if (response['success'] == true) {
-      return response['data'];
+      final data = response['data'];
+      if (data is List) {
+        return data.cast<Map<String, dynamic>>();
+      }
     }
-    return {'error': response['error'] ?? 'Failed to get report'};
-  }
-  
-  /// Get chat history
-  Future<Map<String, dynamic>> getChats({String? workspaceId}) async {
-    final query = workspaceId != null ? '?workspace_id=$workspaceId' : '';
-    final response = await _client.request(
-      method: 'GET',
-      endpoint: '/ai/chats$query',
-    );
-    
-    if (response['success'] == true) {
-      return response['data'];
-    }
-    return {'error': response['error'] ?? 'Failed to get chats'};
+    return [];
   }
 }

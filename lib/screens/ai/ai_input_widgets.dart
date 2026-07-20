@@ -1,6 +1,7 @@
 // lib/screens/ai/ai_input_widgets.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../themes/app_colors.dart';
 import '../../models/workspace/workspace.dart';
 
@@ -198,9 +199,19 @@ class AIFileUpload extends StatelessWidget {
   }
 
   Future<void> _pickDocument(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('File upload coming soon!')),
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
+      allowMultiple: false,
     );
+
+    if (result != null && result.files.isNotEmpty) {
+      final picked = result.files.first;
+      if (picked.path != null) {
+        onFileSelected(picked.path!, picked.name);
+        if (context.mounted) Navigator.pop(context);
+      }
+    }
   }
 
   @override

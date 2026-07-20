@@ -48,7 +48,6 @@ class FileService {
       // ✅ FIXED: Using _documentService instead of DocumentApi
       final response = await _documentService.uploadDocument(
         file: file,
-        workspaceId: workspaceId,
       );
       
       if (response['success'] == true) {

@@ -27,10 +27,13 @@ class DocumentService {
     }
   }
 
-  /// Upload a document to a workspace
+  /// Upload a document.
+  /// Pass [sessionId] to scope the document to a specific chat session for RAG.
+  /// Pass [folderId] to put it in a folder.
   Future<Map<String, dynamic>> uploadDocument({
     required File file,
-    required String workspaceId,
+    String? sessionId,
+    String? folderId,
     String? customFileName,
   }) async {
     try {
@@ -41,13 +44,23 @@ class DocumentService {
         return {'success': false, 'error': 'Not authenticated'};
       }
 
+      // Build URL — session_id is an optional query param per backend contract
+      String uploadUrl = '${ApiClient.baseUrl}/documents/upload';
+      if (sessionId != null && sessionId.isNotEmpty) {
+        uploadUrl += '?session_id=$sessionId';
+      }
+
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiClient.baseUrl}/documents/upload'),
+        Uri.parse(uploadUrl),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
-      request.fields['workspace_id'] = workspaceId;
+
+      if (folderId != null && folderId.isNotEmpty) {
+        request.fields['folder_id'] = folderId;
+      }
+
       request.files.add(
         await http.MultipartFile.fromPath('file', file.path, filename: fileName),
       );
@@ -76,6 +89,14 @@ class DocumentService {
       };
     }
   }
+
+  /// Convenience: upload a file scoped to a chat session (for in-session RAG).
+  Future<Map<String, dynamic>> uploadForSession({
+    required File file,
+    required String sessionId,
+    String? customFileName,
+  }) =>
+      uploadDocument(file: file, sessionId: sessionId, customFileName: customFileName);
 
   /// Delete a document by ID
   Future<Map<String, dynamic>> deleteDocument(String documentId) async {
