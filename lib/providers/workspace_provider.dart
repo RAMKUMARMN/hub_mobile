@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workspace/workspace.dart';
 import '../services/api/workspace_service.dart';
-import './app_state.dart';
 import 'dart:convert';
 import 'package:logger/logger.dart';
 
@@ -47,6 +46,7 @@ class WorkspaceProvider extends ChangeNotifier {
   }
   
   Future<void> _saveWorkspacesToStorage() async {
+    if (_currentUserId == null || _currentUserId!.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final key = await _getUserScopedKey('workspaces');
     final workspacesJson = _workspaces.map((w) => w.toJson()).toList();
@@ -149,10 +149,6 @@ class WorkspaceProvider extends ChangeNotifier {
 
       _workspaces.add(newWorkspace);
       await _saveWorkspacesToStorage();
-
-      // Initialize workspace items in AppState
-      final appState = AppState();
-      appState.initializeWorkspaceItems(newWorkspace.id);
 
       _currentWorkspace = newWorkspace;
 

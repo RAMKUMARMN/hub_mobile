@@ -70,14 +70,16 @@ class SmartHubApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => WorkspaceProvider()),
         ChangeNotifierProvider(create: (_) => AIProvider()),
         
-        // Depends on AppState and WorkspaceProvider - create last
+        // Depends on AppState, WorkspaceProvider, and AIProvider - create last
         ChangeNotifierProvider(
           create: (context) {
             final authProvider = AuthProvider();
             final appState = Provider.of<AppState>(context, listen: false);
             final workspaceProvider = Provider.of<WorkspaceProvider>(context, listen: false);
+            final aiProvider = Provider.of<AIProvider>(context, listen: false);
             authProvider.setAppState(appState);
             authProvider.setWorkspaceProvider(workspaceProvider);
+            authProvider.setAIProvider(aiProvider);
             return authProvider;
           },
         ),

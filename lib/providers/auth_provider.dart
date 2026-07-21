@@ -5,6 +5,7 @@ import '../services/api/auth_service.dart';
 //import '../services/api/api_client.dart';
 import 'app_state.dart';
 import 'workspace_provider.dart';
+import 'ai_provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _token;
@@ -18,6 +19,7 @@ class AuthProvider extends ChangeNotifier {
   
   AppState? _appState;
   WorkspaceProvider? _workspaceProvider;
+  AIProvider? _aiProvider;
   
   // Services
   final AuthService _authService = AuthService();
@@ -45,6 +47,10 @@ class AuthProvider extends ChangeNotifier {
     _workspaceProvider = workspaceProvider;
   }
 
+  void setAIProvider(AIProvider aiProvider) {
+    _aiProvider = aiProvider;
+  }
+
   // ============ SESSION MANAGEMENT ============
 
   Future<void> _checkExistingSession() async {
@@ -64,19 +70,26 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       notifyListeners();
       
-      if (_appState != null && _workspaceProvider != null && _userId != null) {
-        await _loadUserData();
-      }
+      await _loadUserData();
     }
   }
 
   Future<void> _loadUserData() async {
-    if (_appState == null || _workspaceProvider == null || _userId == null) return;
+    if (_userId == null) return;
     
-    _workspaceProvider!.setCurrentUserId(_userId!);
-    await _workspaceProvider!.loadUserWorkspaces(_userId!);
-    await _appState!.loadAllDataFromBackend();
-    await _appState!.loadUserData(_userId!);
+    if (_workspaceProvider != null) {
+      _workspaceProvider!.setCurrentUserId(_userId!);
+      await _workspaceProvider!.loadUserWorkspaces(_userId!);
+    }
+    
+    if (_appState != null) {
+      await _appState!.loadUserData(_userId!);
+      await _appState!.loadAllDataFromBackend();
+    }
+
+    if (_aiProvider != null) {
+      await _aiProvider!.loadUserData(_userId!);
+    }
   }
 
   Future<void> _saveSession() async {
@@ -400,14 +413,16 @@ class AuthProvider extends ChangeNotifier {
   // ============ LOGOUT ============
 
   Future<void> logout() async {
-    
     if (_appState != null && _userId != null) {
       await _appState!.clearUserData(_userId!);
     }
     
-    // Clear WorkspaceProvider
     if (_workspaceProvider != null) {
       _workspaceProvider!.clearWorkspaces();
+    }
+
+    if (_aiProvider != null) {
+      _aiProvider!.clearUserData();
     }
     
     // Clear auth state
@@ -463,6 +478,10 @@ class AuthProvider extends ChangeNotifier {
     if (_workspaceProvider != null) {
       _workspaceProvider!.clearWorkspaces();
     }
+
+    if (_aiProvider != null) {
+      _aiProvider!.clearUserData();
+    }
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
@@ -476,6 +495,7 @@ class AuthProvider extends ChangeNotifier {
       await prefs.remove('workspace_items_$_userId');
       await prefs.remove('recent_activities_$_userId');
       await prefs.remove('focus_sessions_$_userId');
+      await prefs.remove('ai_chats_$_userId');
     }
     
     _token = null;

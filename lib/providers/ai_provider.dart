@@ -9,15 +9,17 @@ import '../models/workspace/workspace.dart';
 import '../services/ai/ai_services.dart';
 import '../services/api/document_service.dart';
 
-// Maps local chat ID -> backend session UUID
-final Map<String, String> _backendSessionIds = {};
-
-// Tracks which local chat IDs have at least one uploaded document (enables RAG)
-final Set<String> _sessionsWithDocuments = {};
-
 class AIProvider extends ChangeNotifier {
   final AIService _aiService = AIService();
   final DocumentService _documentService = DocumentService();
+
+  // Maps local chat ID -> backend session UUID
+  final Map<String, String> _backendSessionIds = {};
+
+  // Tracks which local chat IDs have at least one uploaded document (enables RAG)
+  final Set<String> _sessionsWithDocuments = {};
+
+  String? _currentUserId;
 
   // ✅ Chats organized by workspace ID
   Map<String, List<AIChat>> _workspaceChats = {};
@@ -76,11 +78,37 @@ class AIProvider extends ChangeNotifier {
     _loadChats();
   }
 
-  // ============ STORAGE ============
+  // ============ USER DATA & STORAGE ============
+
+  Future<void> loadUserData(String userId) async {
+    _currentUserId = userId;
+    _workspaceChats.clear();
+    _backendSessionIds.clear();
+    _sessionsWithDocuments.clear();
+    _currentChat = null;
+    await _loadChats();
+  }
+
+  void clearUserData() {
+    _currentUserId = null;
+    _workspaceChats.clear();
+    _backendSessionIds.clear();
+    _sessionsWithDocuments.clear();
+    _currentChat = null;
+    notifyListeners();
+  }
+
+  Future<String> _getUserScopedKey(String baseKey) async {
+    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
+      return '${baseKey}_$_currentUserId';
+    }
+    return baseKey;
+  }
 
   Future<void> _loadChats() async {
     final prefs = await SharedPreferences.getInstance();
-    final chatsJson = prefs.getString('ai_chats');
+    final key = await _getUserScopedKey('ai_chats');
+    final chatsJson = prefs.getString(key);
     if (chatsJson != null) {
       try {
         final Map<String, dynamic> decoded = jsonDecode(chatsJson);
@@ -93,6 +121,8 @@ class AIProvider extends ChangeNotifier {
         debugPrint('Error loading chats: $e');
         _workspaceChats = {};
       }
+    } else {
+      _workspaceChats = {};
     }
 
     _ensureWorkspaceHasChats();
@@ -100,12 +130,14 @@ class AIProvider extends ChangeNotifier {
   }
 
   Future<void> _saveChats() async {
+    if (_currentUserId == null || _currentUserId!.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
+    final key = await _getUserScopedKey('ai_chats');
     final Map<String, List<Map<String, dynamic>>> allChatsJson = {};
     _workspaceChats.forEach((workspaceId, chats) {
       allChatsJson[workspaceId] = chats.map((c) => c.toJson()).toList();
     });
-    await prefs.setString('ai_chats', jsonEncode(allChatsJson));
+    await prefs.setString(key, jsonEncode(allChatsJson));
   }
 
   void _ensureWorkspaceHasChats() {

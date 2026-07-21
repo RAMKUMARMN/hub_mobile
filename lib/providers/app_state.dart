@@ -144,6 +144,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _saveFocusSessions() async {
+    if (_currentUserId == null || _currentUserId!.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final key = await _getUserScopedKey('focus_sessions');
     final sessionsJson = _focusSessions.map((s) => s.toJson()).toList();
@@ -257,6 +258,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _saveToStorage() async {
+    if (_currentUserId == null || _currentUserId!.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final key = await _getUserScopedKey('workspace_items');
 
@@ -319,6 +321,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _saveActivitiesToStorage() async {
+    if (_currentUserId == null || _currentUserId!.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final key = await _getUserScopedKey('recent_activities');
     await prefs.setString(key, jsonEncode(_recentActivities));
