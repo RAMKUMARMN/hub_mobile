@@ -1,0 +1,10 @@
+// lib/services/api/index.dart
+export 'api_client.dart';
+export 'auth_service.dart';
+export 'calendar_service.dart';
+export 'dashboard_service.dart';
+export 'document_service.dart';
+export 'focus_service.dart';
+export 'note_api_service.dart';
+export 'task_api_service.dart';
+export 'workspace_service.dart';

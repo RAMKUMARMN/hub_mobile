@@ -1,0 +1,72 @@
+name: "Mobile CodeQL"
+
+on:
+  push:
+    branches: [main, dev, cg2]
+    paths:
+      - 'android/**'
+      - 'ios/**'
+      - '.github/workflows/mobile-codeql.yml'
+  pull_request:
+    branches: [main, dev, cg2]
+    paths:
+      - 'android/**'
+      - 'ios/**'
+      - '.github/workflows/mobile-codeql.yml'
+  schedule:
+    - cron: '30 1 * * 0'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze-native:
+    name: Analyze Mobile Native Code (java-kotlin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+
+      - name: Build Android app (for CodeQL analysis)
+        run: flutter build apk --debug
+        continue-on-error: true
+
+      - name: Initialize CodeQL (Java/Kotlin)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          queries: security-and-quality
+          build-mode: none
+
+      - name: Perform CodeQL Analysis (Java/Kotlin)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java-kotlin"
