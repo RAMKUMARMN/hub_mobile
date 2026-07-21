@@ -1,6 +1,7 @@
 ---
 applyTo: "**/*.dart"
 ---
+
 # Project coding standards for Dart (Flutter)
 
 Apply the [general coding guidelines](./general-coding.instructions.md) to all code.
@@ -34,3 +35,29 @@ Apply the [general coding guidelines](./general-coding.instructions.md) to all c
 - Handle foreground, background, and terminated states
 - Deep link from notification taps via GoRouter
 - Test on physical devices — simulators have limited push support
+
+## Agent Guidelines
+
+This repository uses the following agents:
+
+| Agent | File | Purpose |
+|---|---|---|
+| `mobile-agent` | `.github/agents/mobile-agent.agent.md` | Coordinator — routes to single-task agents |
+| `mobile-ui` | `.github/agents/mobile-ui.agent.md` | Flutter screens, widgets, layouts |
+| `mobile-state` | `.github/agents/mobile-state.agent.md` | Riverpod providers and state management |
+| `mobile-data` | `.github/agents/mobile-data.agent.md` | API service, Hive caching, data models |
+| `mobile-push` | `.github/agents/mobile-push.agent.md` | FCM push notifications and deep links |
+| `mobile-ci` | `.github/agents/mobile-ci.agent.md` | CI workflows for Flutter builds |
+| `mobile-platform-audit` | `.github/agents/mobile-platform-audit.agent.md` | Platform adaptation & accessibility audit |
+| `mobile-lifecycle` | `.github/agents/mobile-lifecycle.agent.md` | Memory leaks & performance bottlenecks |
+| `mobile-qa` | `.github/agents/mobile-qa.agent.md` | Layout overflows & unreachable UI elements |
+| `mobile-code-reviewer` | `.github/agents/mobile-code-reviewer.agent.md` | Code review before merge |
+
+Prompts are in `.github/prompts/` and skills in `.agents/skills/`.
+
+When asking for help, prefix your request with the agent name:
+- "@mobile-ui Create a Profile screen"
+- "@mobile-state Create an auth provider"
+- "@mobile-data Add a Workspace model"
+- "@mobile-push Set up FCM notifications"
+- "@mobile-ci Create mobile-ci.yml workflow"

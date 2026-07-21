@@ -25,6 +25,12 @@ Cross-platform Flutter app for CixioHub. One codebase targets both **iOS** and *
    flutter run -d android
    ```
 
+## Using OpenCode Agents
+
+This repository includes OpenCode/Copilot agents for common Flutter tasks.
+Type `/` in chat to see all available agents, or see `.github/agents/SKILLS.md`
+for a complete reference.
+
 ## Project Structure
 
 ```

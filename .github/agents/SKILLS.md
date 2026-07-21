@@ -1,13 +1,31 @@
 ---
 name: mobile-agent-skills
-description: Skills for the `hub_mobile` assistant: Flutter/Dart development, Riverpod state management, GoRouter navigation, Dio API integration, Firebase push notifications, cross-platform builds, and safe mobile app maintenance. The agent helps maintainers set up and manage the Flutter application in the repository, with a strong emphasis on safety and human oversight for release-signing actions.
+description: Skills for the `hub_mobile` assistant: Flutter/Dart development, Riverpod state management, GoRouter navigation, Dio API integration, Firebase push notifications, cross-platform builds, and safe mobile app maintenance. The coordinator routes requests to single-task agents.
 ---
+
 # Mobile Agent — Skills Catalog
 
-This document describes the skills, inputs/outputs, tools, safety constraints, and example prompts the `mobile-agent` (see `mobile agent.agent.md`) supports for the `hub_mobile` repository.
+This document describes the skills, inputs/outputs, tools, safety constraints, and example prompts the `mobile-agent` (see `mobile-agent.agent.md`) supports for the `hub_mobile` repository.
 
 **Purpose**
 - Provide a compact, discoverable list of the agent's actionable capabilities so maintainers can quickly know what to ask and what to expect.
+
+## Using the Agents
+
+All agents are auto-discovered — type `/` in the OpenCode/Copilot chat to see the full list.
+
+| To do this... | Type this command |
+|---|---|
+| Create/update a screen | `@mobile-ui Create a profile screen...` |
+| Add Riverpod state | `@mobile-state Create a provider for...` |
+| Integrate an API | `@mobile-data Add a Dio service for...` |
+| Set up push notifications | `@mobile-push Configure FCM for...` |
+| Create a CI workflow | `@mobile-ci Create a CI pipeline...` |
+| Audit platform adaptation | `@mobile-platform-audit Audit all screens...` |
+| Check memory/performance | `@mobile-lifecycle Check for dispose leaks...` |
+| Detect layout overflows | `@mobile-qa Scan for RenderFlex overflows...` |
+| Review code | `@mobile-code-reviewer Review this file...` |
+| Multi-domain task | `@mobile-agent I need to add a screen...` (coordinator routes it) |
 
 **Quick summary**
 - **Primary domain:** Flutter/Dart cross-platform mobile app (iOS + Android), screens, services, state management, push notifications.
@@ -16,68 +34,127 @@ This document describes the skills, inputs/outputs, tools, safety constraints, a
 
 ## Capabilities
 
-- Generate or update GitHub Actions workflows to run `flutter analyze`, `flutter test`, `flutter build apk --debug`, and `flutter build ios --no-codesign --debug`.
-- Create new screens and widgets following existing patterns (Riverpod, GoRouter, Dio, Hive).
-- Configure Firebase Cloud Messaging for both Android and iOS push notifications.
-- Run code generation with `dart run build_runner build --delete-conflicting-outputs`.
-- Produce repository patches via `apply_patch` (small, focused edits) and provide diffs for review before applying.
-- Run static checks in CI: `flutter analyze`, `flutter test`, optional dart format.
-- Draft PR descriptions, risk notes, and post-build verification checklists.
-- Create a safe release build workflow template guarded by typed confirmation.
+### UI Screens & Widgets (handled by `mobile-ui` agent)
+- Create or update Flutter screens in `lib/screens/`
+- Build reusable widgets in `lib/widgets/`
+- Configure GoRouter navigation
+- Apply theme and platform-adaptive design
+
+### State Management (handled by `mobile-state` agent)
+- Create Riverpod providers with code generation
+- Implement AsyncNotifier, FutureProvider, StreamProvider patterns
+- Run `dart run build_runner build` for code generation
+- Manage state with sealed classes for loading/success/error
+
+### API, Data & Models (handled by `mobile-data` agent)
+- Dio HTTP client with JWT interceptor
+- Data models with JSON serialization
+- Hive caching and local storage
+- Domain-specific service classes
+
+### Push Notifications (handled by `mobile-push` agent)
+- Firebase Cloud Messaging setup for Android and iOS
+- Foreground, background, terminated state handling
+- Deep link routing from notification taps
+- FCM token management
+
+### CI Workflows (handled by `mobile-ci` agent)
+- Flutter analyze, test, and build jobs
+- Android APK and iOS simulator builds
+- Code generation step with build_runner
+- Dependency caching and artifact upload
+
+### Infrastructure Skills (reusable guides in `.agents/skills/`)
+- `flutter-implement-json-serialization` — Model JSON serialization
+- `flutter-add-widget-test` — Widget testing
+- `flutter-use-http-package` — HTTP API calls
+- `flutter-build-responsive-layout` — Responsive layouts
+- `flutter-apply-architecture-best-practices` — Clean architecture
+- `flutter-add-widget-preview` — Widget previews
+- `flutter-setup-declarative-routing` — GoRouter setup
+- `flutter-fix-layout-issues` — Layout troubleshooting
+- `flutter-add-integration-test` — Integration testing
+- `flutter-setup-localization` — App localization
 
 ## Inputs the agent expects (ask if missing)
-- `platform` -- which platform to target: `android`, `ios`, or `both`.
-- `screen_name` -- the name of the screen or feature to create or modify.
-- `api_endpoint` -- the backend API endpoint to integrate with.
-- `secret_names` -- repo secret names for `FIREBASE_CONFIG_BASE64`, `SLACK_WEBHOOK_URL`, etc.
-- `notification` config -- repo secret name for `SLACK_WEBHOOK_URL` or `NOTIFICATION_EMAIL`.
+- `screen_name` — the screen or feature to create or modify
+- `platform` — which platform to target: `android`, `ios`, or `both`
+- `api_endpoint` — the backend API endpoint to integrate with
+- `provider_name` — the Riverpod provider to create or modify
+- `model_name` — the data model to create or modify
 
 ## Outputs the agent produces
-- New or modified workflow YAML files in `/.github/workflows/` (e.g., `mobile-ci.yml`).
-- New Dart files (screens, services, models, providers) or patches to existing ones.
-- README/docs snippets describing required secrets and how to run the app.
-- PR-ready changelog/summary and verification checklist.
-- Patches (diffs) applied with `apply_patch` when given explicit permission.
+- New or modified Dart files (screens, widgets, providers, services, models)
+- GoRouter route configuration updates
+- CI workflow YAML files in `/.github/workflows/`
+- README/docs snippets describing required secrets
+- PR-ready changelog/summary and verification checklist
 
 ## Tools the agent uses
-- `apply_patch` -- create or update repo files (used only after human confirmation for impactful changes).
-- `read_file`, `file_search`, `grep_search` -- inspect repo layout and find Dart files or config files.
-- `manage_todo_list` -- track multi-step tasks and report progress back to the maintainer.
-- `run_in_terminal` -- only if explicitly requested; otherwise the agent outputs commands for maintainers to run locally or in CI.
+- Repository editing tools for making focused edits
+- File search and read tools to inspect repo layout
+- Progress tracking tools to manage multi-step tasks
 
 ## Safety, boundaries, and policies
 
-- Never request or accept raw secrets in chat messages. Instead, the agent asks for secret *names* (e.g., `FIREBASE_CONFIG_BASE64`) and instructs maintainers to set them in GitHub Secrets.
-- Never publish to app stores or sign release builds without an explicit confirmation token: `CONFIRM_RELEASE_BUILD` (maintainer must provide this token before the agent takes any action that would modify release signing configs or automated build steps).
+- Never request or accept raw secrets in chat messages. Instead, ask for secret *names* (e.g., `FIREBASE_CONFIG_BASE64`) and instruct maintainers to set them in GitHub Secrets.
+- Never publish to app stores or sign release builds without an explicit confirmation token: `CONFIRM_RELEASE_BUILD`.
 - No direct Google Play or App Store Connect API operations.
-- No automatic PR merging or repo-level approvals -- the agent drafts, explains, and optionally creates patches/PRs after explicit permission.
+- No automatic PR merging or repo-level approvals — draft and explain only.
 
 ## Confirmation and escalation rules
-- Low-risk edits (formatting, docs, test additions): agent may apply patches after a single maintainer approval.
-- Medium-risk edits (new screens, service changes, model updates): require an explicit approval message before applying patches.
-- High-risk edits (changes that enable or run release builds, alter signing configuration, or modify store submission steps): require the typed confirmation `CONFIRM_RELEASE_BUILD` and a second acknowledgment (e.g., "I understand this may produce a signed release artifact").
+- Low-risk edits (formatting, docs, test additions): apply patches after a single maintainer approval.
+- Medium-risk edits (new screens, service changes, model updates): require explicit approval before applying.
+- High-risk edits (changes that enable release builds, alter signing configuration): require `CONFIRM_RELEASE_BUILD` and a second acknowledgment.
 
 ## Example prompts (how to ask the agent)
-- "Create a `mobile-ci.yml` workflow that runs `flutter analyze`, `flutter test`, and builds Android APK on push and PR; post results to Slack via `SLACK_WEBHOOK_URL`."
-- "Add offline message caching with Hive for the chat screen -- show me the patch before applying."
-- "Implement a Forgot Password screen with Riverpod and GoRouter following existing patterns."
 
-## Typical workflows the agent supports
+### UI Screens
+- "Create a Profile screen with avatar, name, email, and a Sign Out button."
+- "Add a reusable AppBar widget with platform-adaptive styling."
 
-1. Discovery: scan repo for `lib/screens/*`, `lib/services/*`, `lib/models/*`, and existing config files.
-2. Draft: create a draft screen or feature with widgets, providers, and API integration.
-3. Review: produce a PR description, risk summary, and required environment variables docs.
-4. Apply (human-gated): upon confirmation, the agent can apply small patches or add CI steps; release builds require `CONFIRM_RELEASE_BUILD`.
+### State Management
+- "Create a Riverpod provider for the auth state with login, logout, and token refresh."
+- "Run build_runner to generate code for the new providers."
 
-## Error handling & troubleshooting behavior
-- If `flutter analyze` or `flutter test` fails, the agent returns a concise diagnostics summary and suggests fixes.
-- If `dart run build_runner build` shows conflicts or errors, the agent highlights them, explains likely causes, and recommends fixes.
+### API & Data
+- "Create a Workspace model with fromJson/toJson for the workspace API response."
+- "Add a JWT interceptor to the Dio HTTP client for auth token management."
+
+### Push Notifications
+- "Set up Firebase Cloud Messaging for push notifications with foreground and background handling."
+- "Configure deep link routing from notification taps to the correct GoRouter screen."
+
+### CI Workflows
+- "Create a mobile-ci.yml workflow with analyze, test, build-apk, and build-ios jobs."
+
+## Agent Architecture
+
+The coordinator (`mobile-agent`) routes to single-task agents:
+
+| Agent | Responsibility |
+|---|---|---|
+| `mobile-ui` | Flutter screens, widgets, layouts |
+| `mobile-state` | Riverpod providers and state management |
+| `mobile-data` | API service, Hive caching, data models |
+| `mobile-push` | FCM push notifications and deep links |
+| `mobile-ci` | CI workflows for Flutter builds |
+| `mobile-platform-audit` | Platform adaptation & accessibility audit |
+| `mobile-lifecycle` | Memory leaks & performance bottlenecks |
+| `mobile-qa` | Layout overflows & unreachable UI elements |
+| `mobile-code-reviewer` | Code review before merge |
 
 ## How progress is reported
-- The agent uses `manage_todo_list` to break tasks into steps (discover -> draft -> patch -> verify) and will report the current step and completed steps in chat messages.
+- Each agent breaks tasks into steps and reports current/completed steps
 
-## Where to find the agent's configuration and prompts
-- Agent behavior is documented in `/.github/agents/mobile agent.agent.md` and the repository prompt lives at `/.github/prompts/mobile-prompt.prompt.md`.
+## Where to find configuration
+- Agent configs: `/.github/agents/*.agent.md`
+- Prompts: `/.github/prompts/*.prompt.md`
+- Skills: `/.agents/skills/*/SKILL.md`
+- Hooks: `/.github/hooks/*.json`
+- General guidelines: `/.github/copilot-instructions.md`
 
 ## Maintenance notes
-- Keep `SKILLS.md` aligned with `mobile agent.agent.md` and `mobile-prompt.prompt.md` -- update all three when adding new capabilities (for example, support for a new state management approach or a different build system).
+- Keep `SKILLS.md` aligned with individual agent files and prompts
+- When adding a new skill, create `/.agents/skills/<name>/SKILL.md` and update this catalog
+- When adding a new single-task agent, create the agent file, prompt file, register it in the coordinator's handoffs, and update this file
