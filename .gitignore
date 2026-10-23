@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+# Build-time values for --dart-define-from-file (secrets)
+dart_defines.json
 
 # Flutter / Dart
 .dart_tool/

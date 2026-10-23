@@ -42,6 +42,16 @@ dependencies:
 
   # Environment variables
   flutter_dotenv: ^5.2.1
+  flutter_local_notifications: ^22.3.1
+
+  # AWS SigV4 signing for the SNS SMS sandbox (crypto is used directly)
+  aws_common: ^0.7.15
+  crypto: ^3.0.3
+  record: ^6.2.1
+  path_provider: ^2.1.6
+  uuid: ^4.6.0
+  workmanager: ^0.10.10
+  device_info_plus: ^12.4.0
 
 dev_dependencies:
   flutter_test:

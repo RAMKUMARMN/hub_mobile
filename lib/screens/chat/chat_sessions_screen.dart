@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/message.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/aws_sns_sms_service.dart';
+import '../../services/message_service.dart';
 
 class ChatSessionsScreen extends StatefulWidget {
   const ChatSessionsScreen({super.key});
@@ -15,7 +18,9 @@ class ChatSessionsScreen extends StatefulWidget {
 class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
   List<ChatSession> _sessions = [];
   bool _isLoading = true;
+  final SmsService _sms = SmsService();
   bool _isCreating = false;
+  bool _isSendingSms = false;
   String? _error;
 
   @override
@@ -61,6 +66,50 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
     } finally {
       if (mounted) setState(() { _isCreating = false; });
     }
+  }
+
+  Future<void> _testSms() async {
+    if (_isSendingSms) return;
+    setState(() => _isSendingSms = true);
+
+    SmsResult outcome;
+    try {
+      // Resolve the destination from the SNS sandbox — never typed by hand.
+      // The logged-in user's stored phone is used only to pick between
+      // multiple verified sandbox numbers.
+      final stored = await AuthService().getCurrentUser().then((u) => u?.phone);
+      final resolved = await _sms.resolveSandboxNumber(userPhone: stored);
+
+      if (resolved == null) {
+        outcome = const SmsResult.failure(
+            'No verified sandbox number to send to.');
+      } else {
+        outcome = await _sms.sendSms(
+          phone: resolved.phone,
+          message: 'Test SMS from CixioHub to ${resolved.source}.',
+        );
+        if (outcome.success) {
+          outcome = SmsResult.success('${outcome.message} (${resolved.source})');
+        }
+      }
+    } on SnsException catch (e) {
+      outcome = SmsResult.failure(e.toString());
+    } catch (e) {
+      outcome = SmsResult.failure('Unexpected error: $e');
+    }
+
+    if (!mounted) return;
+    setState(() => _isSendingSms = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(outcome.message),
+        duration: const Duration(seconds: 6),
+        backgroundColor: outcome.success
+            ? Colors.green.shade700
+            : Colors.red.shade700,
+      ),
+    );
   }
 
   Future<void> _deleteSession(String id) async {
@@ -138,17 +187,40 @@ class _ChatSessionsScreenState extends State<ChatSessionsScreen> {
                         },
                       ),
                     ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab_chat_sessions',
-        onPressed: _isCreating ? null : _newSession,
-        icon: _isCreating
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.add),
-        label: const Text('New Chat'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'fab_test_sms',
+            onPressed: _isSendingSms ? null : _testSms,
+            icon: _isSendingSms
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.sms_outlined),
+            label: const Text('Test SMS'),
+            backgroundColor: Colors.deepOrange,
+            foregroundColor: Colors.white,
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'fab_chat_sessions',
+            onPressed: _isCreating ? null : _newSession,
+            icon: _isCreating
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.add),
+            label: const Text('New Chat'),
+          ),
+        ],
       ),
     );
   }
